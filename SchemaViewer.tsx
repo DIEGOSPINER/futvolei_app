@@ -16,6 +16,8 @@ export interface Player {
   createdAt: string;
   presenceDays: number;     // number of unique days of check-in / attendance
   presentDates: string[];   // list of 'YYYY-MM-DD' strings where player has at least one match
+  role?: 'atleta' | 'admin_arena' | 'admin_geral';
+  managedArenaIds?: string[]; // List of Arena IDs managed by this user
 }
 
 export interface Duo {
