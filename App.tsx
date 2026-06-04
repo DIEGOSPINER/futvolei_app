@@ -81,7 +81,9 @@ export const initialPlayers: Player[] = [
     points: 30, // 9 * 3 + 3 * 1 = 30 points
     createdAt: "2026-03-01T10:00:00Z",
     presenceDays: 5,
-    presentDates: ["2026-06-01", "2026-06-02", "2026-05-12", "2026-05-15", "2026-04-10"]
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-12", "2026-05-15", "2026-04-10"],
+    role: "admin_geral",
+    managedArenaIds: ["arena_pantano", "arena_marisol"]
   },
   {
     id: "usr_pablo",
@@ -95,7 +97,9 @@ export const initialPlayers: Player[] = [
     points: 28,
     createdAt: "2026-03-20T10:00:00Z",
     presenceDays: 5,
-    presentDates: ["2026-06-01", "2026-06-02", "2026-05-10", "2026-05-12", "2026-04-14"]
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-10", "2026-05-12", "2026-04-14"],
+    role: "admin_arena",
+    managedArenaIds: ["arena_pantano"]
   },
   {
     id: "usr_rasta",

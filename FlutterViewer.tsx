@@ -20,7 +20,14 @@ import {
   Users, 
   LogOut, 
   Sparkles,
-  Info
+  Info,
+  Lock,
+  Unlock,
+  Building,
+  Key,
+  PlusCircle,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 
 interface PlayerDashboardProps {
@@ -33,6 +40,8 @@ interface PlayerDashboardProps {
   onRegisterPlayer: (name: string, arenaId: string, photoUrl: string) => void;
   onValidateMatch: (matchId: string, playerId: string) => void;
   onRejectMatch: (matchId: string, playerId: string) => void;
+  onCreateArena: (name: string, city: string, imageUrl: string) => void;
+  onPromotePlayerToAdmin: (playerId: string, arenaId: string) => void;
 }
 
 // Preset high-quality photos for new player registration to make user boarding look awesome
@@ -53,7 +62,9 @@ export default function PlayerDashboard({
   setLoggedPlayerId,
   onRegisterPlayer,
   onValidateMatch,
-  onRejectMatch
+  onRejectMatch,
+  onCreateArena,
+  onPromotePlayerToAdmin
 }: PlayerDashboardProps) {
   
   // Registration Form Local States
@@ -62,6 +73,19 @@ export default function PlayerDashboard({
   const [regArenaId, setRegArenaId] = useState(arenas[0]?.id || '');
   const [selectedAvatarIdx, setSelectedAvatarIdx] = useState(0);
   const [regError, setRegError] = useState<string | null>(null);
+
+  // Simulated Authenticated Guard Toggle (Lock to this User)
+  const [isAccessLocked, setIsAccessLocked] = useState(false);
+
+  // Arena Admin UI Forms States
+  const [showArenaForm, setShowArenaForm] = useState(false);
+  const [newArenaName, setNewArenaName] = useState('');
+  const [newArenaCity, setNewArenaCity] = useState('Salvador - BA');
+  const [newArenaImage, setNewArenaImage] = useState('');
+
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [promoPlayerId, setPromoPlayerId] = useState('');
+  const [promoArenaId, setPromoArenaId] = useState(arenas[0]?.id || '');
 
   // Active athlete context
   const currentUser = players.find(p => p.id === loggedPlayerId) || players[0];
@@ -109,7 +133,7 @@ export default function PlayerDashboard({
       
       {/* 1. TOP HEADER: CURRENT SESSION BAR & SIMULATION SWITCHER */}
       <div className="bg-slate-900 text-white rounded-3xl p-5 md:p-6 shadow-md border border-slate-800">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
           
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -130,8 +154,25 @@ export default function PlayerDashboard({
                 <span className="text-[9px] font-black tracking-widest text-indigo-300 bg-indigo-950/80 border border-indigo-800/40 px-2 py-0.5 rounded-full uppercase">
                   Atleta Conectado
                 </span>
+                {currentUser?.role === 'admin_geral' && (
+                  <span className="text-[9px] font-black tracking-wider text-amber-300 bg-amber-950/80 border border-amber-800/40 px-2 py-0.5 rounded-full uppercase flex items-center gap-0.5 shadow-sm">
+                    <Key className="w-2.5 h-2.5 text-amber-400" />
+                    👑 Admin Geral (Nuvem)
+                  </span>
+                )}
+                {currentUser?.role === 'admin_arena' && (
+                  <span className="text-[9px] font-black tracking-wider text-teal-300 bg-teal-950/80 border border-teal-800/40 px-2 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                    <Building className="w-2.5 h-2.5 text-teal-400" />
+                    🏟️ Gestor da Arena
+                  </span>
+                )}
+                {(!currentUser?.role || currentUser?.role === 'atleta') && (
+                  <span className="text-[9px] font-black tracking-wider text-blue-300 bg-blue-950/80 border border-blue-800/40 px-2 py-0.5 rounded-full uppercase">
+                    🏃 Conta Atleta
+                  </span>
+                )}
                 <span className="text-[9px] font-black tracking-wider text-rose-300 bg-rose-950/80 border border-rose-800/40 px-2 py-0.5 rounded-full uppercase">
-                  Perfil Protegido Anti-Fraude
+                  Regras de Acesso NoSQL
                 </span>
               </div>
               <h2 className="font-extrabold text-lg tracking-tight text-white leading-tight mt-0.5">{currentUser?.name}</h2>
@@ -142,34 +183,57 @@ export default function PlayerDashboard({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-stretch sm:items-center">
-            {/* Direct Switch Dropdown to simulate other users */}
-            <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50 flex flex-col sm:flex-row items-center gap-2">
-              <span className="text-[9.5px] font-bold text-slate-300 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-indigo-400" />
-                Simular como outro:
-              </span>
-              <select
-                value={loggedPlayerId}
-                onChange={(e) => setLoggedPlayerId(e.target.value)}
-                className="bg-slate-950 text-white text-xs p-1.5 px-3 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer w-full sm:w-auto"
-                id="logged-session-swapper"
-              >
-                {players.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Register New User Button */}
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full xl:w-auto items-stretch sm:items-center">
+            
+            {/* Real Security Simulation Switcher Toggle */}
             <button
-              onClick={() => setShowRegForm(!showRegForm)}
-              id="btn-trigger-register"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+              onClick={() => setIsAccessLocked(!isAccessLocked)}
+              className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 transition text-[10.5px] font-bold leading-none shrink-0 ${
+                isAccessLocked 
+                  ? 'bg-rose-950/80 border-rose-800/80 text-rose-300 hover:bg-rose-900/45' 
+                  : 'bg-emerald-950/85 border-emerald-800/80 text-emerald-300 hover:bg-emerald-900/45'
+              }`}
             >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Novo Cadastro</span>
+              {isAccessLocked ? <Lock className="w-3.5 h-3.5 text-rose-400 shrink-0" /> : <Unlock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+              <span className="truncate">{isAccessLocked ? "🔒 Travado (Só Meu Perfil)" : "🔓 Simulando Modos"}</span>
             </button>
+
+            {/* Direct Switch Dropdown to simulate other users - HIDDEN IF ACCESS IS LOCKED */}
+            {!isAccessLocked ? (
+              <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50 flex flex-col sm:flex-row items-center gap-2">
+                <span className="text-[9.5px] font-bold text-slate-300 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-indigo-400" />
+                  Trocar Usuário:
+                </span>
+                <select
+                  value={loggedPlayerId}
+                  onChange={(e) => setLoggedPlayerId(e.target.value)}
+                  className="bg-slate-950 text-white text-xs p-1.5 px-3 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer w-full sm:w-auto"
+                  id="logged-session-swapper"
+                >
+                  {players.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.role === 'admin_geral' ? 'SuperAdmin' : p.role === 'admin_arena' ? 'Gestor' : 'Atleta'})</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-rose-950 text-slate-400 text-[10.5px] font-bold flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-rose-500" />
+                <span>Sessão Encriptada (iOS/Android)</span>
+              </div>
+            )}
+
+            {/* Register New User Button (Only visible if not restricted, simulate client) */}
+            {(!isAccessLocked || currentUser.role === 'admin_geral' || currentUser.role === 'admin_arena') && (
+              <button
+                onClick={() => setShowRegForm(!showRegForm)}
+                id="btn-trigger-register"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Novo Cadastro</span>
+              </button>
+            )}
           </div>
 
         </div>
@@ -485,7 +549,179 @@ export default function PlayerDashboard({
 
       </div>
 
-      {/* 4. FOOTER ADVISORY: FIRESTORE TRANSACTION LOGIC ADVANCED EXPLANATION */}
+      {/* 4. ARENA GESTOR PANEL (ONLY FOR INTERATIVE SHOWCASE AND AUDITING) */}
+      {(currentUser.role === 'admin_arena' || currentUser.role === 'admin_geral') && (
+        <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-5 md:p-6 space-y-5 shadow-lg" id="arena-manager-control-panel">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+            <div className="space-y-1">
+              <span className="px-2 py-0.5 bg-teal-900 text-teal-300 border border-teal-800/40 text-[10px] font-black rounded uppercase tracking-wider">
+                Controle do Proprietário / Gestor
+              </span>
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2 leading-none">
+                <Building className="w-5 h-5 text-teal-400" />
+                <span>🏟️ Painel Administrativo de Arenas de Salvador</span>
+              </h3>
+            </div>
+            
+            <p className="text-[10px] text-slate-400 text-left sm:text-right">
+              {currentUser.role === 'admin_geral' 
+                ? '⭐ Acesso Geral: Permissão de Super-usuário em todas as quadras' 
+                : `🏆 Acesso Restrito: Gerenciando Arenas faturadas: ${currentUser.managedArenaIds?.join(', ') || 'Nenhuma arena autorizada'}`}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* COMPONENT A: CREATE NEW ARENA */}
+            <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <PlusCircle className="w-4.5 h-4.5 text-teal-400" />
+                <h4 className="font-bold text-xs uppercase tracking-wider text-teal-300">Cadastrar Nova Arena</h4>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newArenaName.trim()) return;
+                  onCreateArena(newArenaName.trim(), newArenaCity, newArenaImage);
+                  setNewArenaName('');
+                  setNewArenaImage('');
+                  setShowArenaForm(false);
+                }}
+                className="space-y-3 text-xs"
+              >
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nome da Quadra / Arena</label>
+                  <input 
+                    type="text"
+                    required
+                    value={newArenaName}
+                    onChange={(e) => setNewArenaName(e.target.value)}
+                    placeholder="Ex: Arena Balbininho ou Villas Arena"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cidade / Região</label>
+                    <input 
+                      type="text"
+                      required
+                      value={newArenaCity}
+                      onChange={(e) => setNewArenaCity(e.target.value)}
+                      placeholder="Ex: Salvador - BA"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Foto de Fundo (opcional)</label>
+                    <input 
+                      type="text"
+                      value={newArenaImage}
+                      onChange={(e) => setNewArenaImage(e.target.value)}
+                      placeholder="URL da Imagem Unsplash"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition duration-150 flex items-center justify-center gap-1 cursor-pointer font-black uppercase tracking-wider shadow-md"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Cadastrar e Publicar Arena</span>
+                </button>
+              </form>
+            </div>
+
+            {/* COMPONENT B: REGISTER NEW ARENA ADMIN */}
+            <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <UserCheck className="w-4.5 h-4.5 text-indigo-400" />
+                <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-300">Promover / Credenciar Novo Administrador</h4>
+              </div>
+
+              <p className="text-[10px] text-slate-400 leading-normal">
+                Selecione um atleta cadastrado no circuito de Salvador e dê a ele poder de controle para gerenciar quadras ou aprovar ligas.
+              </p>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!promoPlayerId) return;
+                  onPromotePlayerToAdmin(promoPlayerId, promoArenaId);
+                  setPromoPlayerId('');
+                }}
+                className="space-y-3 text-xs"
+              >
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Escolher Atleta Existente</label>
+                  <select
+                    value={promoPlayerId}
+                    onChange={(e) => setPromoPlayerId(e.target.value)}
+                    required
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Selecione o atleta da base --</option>
+                    {players.filter(p => p.id !== currentUser.id && p.role !== 'admin_geral').map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.role ? `Papel: ${p.role}` : 'Atleta comum'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Delegar Arena Sob Gestão</label>
+                  <select
+                    value={promoArenaId}
+                    onChange={(e) => setPromoArenaId(e.target.value)}
+                    required
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold cursor-pointer"
+                  >
+                    {arenas.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition duration-150 flex items-center justify-center gap-1 cursor-pointer font-black uppercase tracking-wider shadow-md"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Delegar Poderes Administrativos</span>
+                </button>
+              </form>
+            </div>
+
+          </div>
+
+          {/* LIST OF ADM SYSTEM ACCOUNTS ACTIVE */}
+          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 space-y-2.5">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+              <Key className="w-3 h-3 text-indigo-400" />
+              Credenciais Administrativas Ativas no Firestore
+            </h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {players.filter(p => p.role === 'admin_geral' || p.role === 'admin_arena').map(admins => (
+                <div key={admins.id} className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2.5">
+                  <img src={admins.photoUrl} alt={admins.name} referrerPolicy="no-referrer" className="w-8 h-8 rounded-lg object-cover shrink-0 border border-slate-700" />
+                  <div className="truncate text-[10px]">
+                    <strong className="block text-slate-200 font-bold leading-tight truncate">{admins.name}</strong>
+                    <span className="text-slate-400 block mt-0.5 font-sans leading-none uppercase tracking-wide text-[8.5px]">
+                      {admins.role === 'admin_geral' ? '👑 Admin Geral' : `🏟️ Gestor (${admins.managedArenaIds?.length || 0} arenas)`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. FOOTER ADVISORY: FIRESTORE TRANSACTION LOGIC ADVANCED EXPLANATION */}
       <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-start gap-2.5 text-indigo-900 leading-normal text-[11px]">
         <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
         <div>

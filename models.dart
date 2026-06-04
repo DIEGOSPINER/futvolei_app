@@ -70,6 +70,57 @@ export default function App() {
     setActiveView('perfil'); // Retain on profile tab
   };
 
+  // Registration of new Arena NoSQL model simulation
+  const handleCreateArena = (name: string, city: string, imageUrl: string) => {
+    const newArenaId = `arena_${Date.now().toString().substring(10)}`;
+    const newArena: Arena = {
+      id: newArenaId,
+      name,
+      city,
+      imageUrl: imageUrl || "https://images.unsplash.com/photo-1544698310-74ea9d1c8258?auto=format&fit=crop&q=80&w=400",
+      createdAt: new Date().toISOString(),
+      matchesPlayed: 0,
+      totalPointsScored: 0,
+      yearlyVictories: { "2026": 0 }
+    };
+
+    setArenas(prev => [...prev, newArena]);
+
+    const logVal: SimulationLog = {
+      action: 'CREATE',
+      path: `/arenas/${newArenaId}`,
+      payload: newArena,
+      explanation: `A Arena [${name}] foi criada no Firestore. Inicializou o documento sob a coleção global '/arenas'.`
+    };
+    setLogs([logVal]);
+  };
+
+  // Promote player to admin in our simulation
+  const handlePromotePlayerToAdmin = (playerId: string, arenaId: string) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.id === playerId) {
+        const managed = p.managedArenaIds || [];
+        return {
+          ...p,
+          role: 'admin_arena' as const,
+          managedArenaIds: managed.includes(arenaId) ? managed : [...managed, arenaId]
+        };
+      }
+      return p;
+    }));
+
+    const targetPlayerName = players.find(p => p.id === playerId)?.name || 'Atleta';
+    const targetArenaName = arenas.find(a => a.id === arenaId)?.name || 'Arena';
+
+    const logVal: SimulationLog = {
+      action: 'UPDATE',
+      path: `/players/${playerId}`,
+      payload: { role: 'admin_arena', added_arena: arenaId },
+      explanation: `Regra NoSQL validada: Promoveu [${targetPlayerName}] ao papel 'admin_arena' para gerenciar a arena '[${targetArenaName}]' no banco de dados.`
+    };
+    setLogs([logVal]);
+  };
+
   // Recording a raw created match from our form - Saved as PENDING by default
   const handleRecordMatch = (newMatch: Match, simulatedLogs: SimulationLog[]) => {
     // Append the newly recorded pending match to matches list
@@ -585,6 +636,8 @@ export default function App() {
             onRegisterPlayer={handleRegisterPlayer}
             onValidateMatch={handleValidateMatch}
             onRejectMatch={handleRejectMatch}
+            onCreateArena={handleCreateArena}
+            onPromotePlayerToAdmin={handlePromotePlayerToAdmin}
           />
         )}
 
