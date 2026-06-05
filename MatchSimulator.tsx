@@ -3,291 +3,404 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export interface SchemaField {
-  name: string;
-  type: string;
-  description: string;
-  example: any;
+import React, { useState, useEffect, useRef } from 'react';
+import { Player } from '../types';
+import { 
+  MessageSquare, 
+  Send, 
+  Sparkles, 
+  HelpCircle, 
+  MapPin, 
+  CheckCheck, 
+  AlertCircle, 
+  Flame, 
+  Share2, 
+  ThumbsUp, 
+  Volume2,
+  Trash2,
+  Info
+} from 'lucide-react';
+
+interface ResenhaChatProps {
+  players: Player[];
+  loggedPlayerId: string;
 }
 
-export interface CollectionSchema {
-  path: string;
-  description: string;
-  whyThisWay: string;
-  fields: SchemaField[];
-  subcollections?: CollectionSchema[];
+interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto: string;
+  text: string;
+  timestamp: string;
+  channel: string;
+  isBanter?: boolean;
 }
 
-export const firestoreSchema: CollectionSchema[] = [
-  {
-    path: "/arenas/{arenaId}",
-    description: "Cadastro das arenas ativas (Pântano, Arena Marisol, BPCHOQUE, Buraco, Petromar) e dados de performance consolidados por local.",
-    whyThisWay: "Coleção raiz de arenas. Jogadores são vinculados via arenaId. Permite realizar o comparativo de 'Arena Ganhadora do Ano' em O(1) calculando o volume de partidas disputadas no local, placares gerais e o atleta de melhor aproveitamento nativo de forma agregada no documento.",
-    fields: [
-      { name: "id", type: "String", description: "ID único gerador para a arena (ex: arena_marisol).", example: "arena_marisol" },
-      { name: "name", type: "String", description: "Nome representativo da Arena.", example: "Arena Marisol" },
-      { name: "city", type: "String", description: "Cidade sede da quadra.", example: "Salvador - BA" },
-      { name: "imageUrl", type: "String", description: "Link da foto física do complexo esportivo.", example: "https://images.unsplash.com/photo-1519046904884-53103b34b206" },
-      { name: "matchesPlayed", type: "Number (Integer)", description: "Contagem agregada de todas as partidas disputadas nesta arena.", example: 15 },
-      { name: "totalPointsScored", type: "Number (Integer)", description: "Soma de todos os pontos marcados nas redes desta arena.", example: 310 },
-      { name: "topPlayerId", type: "String", description: "Referência ao jogador filiado com maior aproveitamento (Win Rate) neste ano.", example: "usr_sofia" },
-      { name: "topPlayerName", type: "String", description: "Nome amigável do melhor jogador afiliado para evitar joins complexos.", example: "Sofia 'Shark'" },
-      { name: "yearlyVictories", type: "Map (Year -> Matches)", description: "Contagem anual de partidas consolidadas para decidir a melhor arena do ano.", example: { "2026": 11 } },
-      { name: "createdAt", type: "Timestamp", description: "Data de registro da Arena.", example: "Timestamp(seconds=1780590000, nanoseconds=0)" }
-    ]
-  },
-  {
-    path: "/players/{playerId}",
-    description: "Cadastro de jogadores e suas estatísticas de carreira.",
-    whyThisWay: "Contém campos indexados como 'winRate' e 'points' para possibilitar queries rápidas com ordenação orderBy() direta no Flutter, além de um arenaId correspondente que classifica a filiação do atleta com as arenas de exemplo (Pântano, Marisol, etc.).",
-    fields: [
-      { name: "id", type: "String", description: "UID original do Firebase Auth ou apelido único.", example: "usr_diego" },
-      { name: "name", type: "String", description: "Nome de exibição nas tabelas do futevôlei.", example: "Diego Santos" },
-      { name: "photoUrl", type: "String", description: "Foto de perfil oficial.", example: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e" },
-      { name: "arenaId", type: "String", description: "Arena de filiação principal do jogador (Pântano, Marisol, etc.).", example: "arena_pantano" },
-      { name: "wins", type: "Number (Integer)", description: "Total acumulado de vitórias do atleta.", example: 9 },
-      { name: "losses", type: "Number (Integer)", description: "Total acumulado de derrotas do atleta.", example: 3 },
-      { name: "totalMatches", type: "Number (Integer)", description: "Número total de jogos disputados.", example: 12 },
-      { name: "winRate", type: "Number (Float)", description: "Razão wins/totalMatches (0.00 a 1.00) usada para o aproveitamento.", example: 0.75 },
-      { name: "points", type: "Number (Integer)", description: "Pontos gerais do campeonato (vitória = 3pt, derrota = 1pt).", example: 30 },
-      { name: "createdAt", type: "Timestamp", description: "Data de início no futevôlei do app.", example: "Timestamp(seconds=1780612000, nanoseconds=0)" }
-    ],
-    subcollections: [
-      {
-        path: "/players/{playerId}/monthlyStats/{yearMonth}",
-        description: "Histórico mensal de desempenho individual por ano e mês.",
-        whyThisWay: "O ID do documento refere-se ao período (ex: '2026-06'). Permite plotar gráficos de linha de evolução na tela do usuário instantaneamente.",
-        fields: [
-          { name: "month", type: "String", description: "Chave única no formato AAAA-MM.", example: "2026-06" },
-          { name: "wins", type: "Number (Integer)", description: "Vitórias obtidas.", example: 3 },
-          { name: "losses", type: "Number (Integer)", description: "Derrotas obtidas.", example: 1 },
-          { name: "points", type: "Number (Integer)", description: "Pontos acumulados.", example: 10 }
-        ]
-      }
-    ]
-  },
-  {
-    path: "/duos/{duoId}",
-    description: "Compilação e tabela de classificação de DUPLAS parceiras.",
-    whyThisWay: "Para classificar e analisar as melhores duplas e sua sinergia, criamos documentos no formato 'idJogadorA_idJogadorB' (ordenados alfabeticamente). Esse padrão impede registros duplicados (ex: Diego+Lucas e Lucas+Diego) e permite responder com 100% de precisão sobre a melhor dupla do torneio anual de forma indexada.",
-    fields: [
-      { name: "id", type: "String", description: "ID alfabético 'idMenor_idMaior' que garante unicidade para a dupla.", example: "usr_diego_usr_lucas" },
-      { name: "playerIds", type: "Array (String)", description: "Vetor contendo os dois IDs de jogadores correspondentes.", example: ["usr_diego", "usr_lucas"] },
-      { name: "playerNames", type: "Array (String)", description: "Nomes denormalizados de ambos os jogadores para listagens rápidas.", example: ["Diego Santos", "Lucas 'Lob'"] },
-      { name: "photoUrls", type: "Array (String)", description: "Fotos de perfil de ambos os jogadores.", example: ["https://images.unsplash.com/photo-1500648767791-00dcc994a43e", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde"] },
-      { name: "wins", type: "Number (Integer)", description: "Vitórias obtidas jogando lado a lado.", example: 6 },
-      { name: "losses", type: "Number (Integer)", description: "Derrotas obtidas jogando lado a lado.", example: 2 },
-      { name: "totalMatches", type: "Number (Integer)", description: "Soma de partidas disputadas em conjunto.", example: 8 },
-      { name: "winRate", type: "Number (Float)", description: "Aproveitamento conjunto (wins / totalMatches).", example: 0.75 },
-      { name: "points", type: "Number (Integer)", description: "Pontos conjuntos acumulados.", example: 20 },
-      { name: "yearlyWins", type: "Map (Year -> Wins)", description: "Estatística de vitórias para calcular quem ganhou mais o 'Torneio Anual' daquele ano específico.", example: { "2026": 6 } }
-    ]
-  },
-  {
-    path: "/matches/{matchId}",
-    description: "Registro cronológico imutável de todas as partidas.",
-    whyThisWay: "Tabela transacional. Usamos o campo 'playerIds' para carregar todo o histórico de confrontos que tenham a participação do usuário independentemente de equipe, usando queries 'array-contains'.",
-    fields: [
-      { name: "id", type: "String", description: "ID do documento do Firestore.", example: "match_12345" },
-      { name: "date", type: "Timestamp", description: "Data de realização do jogo.", example: "Timestamp(seconds=1780677173, nanoseconds=0)" },
-      { name: "arenaId", type: "String", description: "ID da Arena de realização (Buraco, Pântano, etc.).", example: "arena_pantano" },
-      { name: "arenaName", type: "String", description: "Nome denormalizado da Arena pra evitar joins.", example: "Arena Pântano" },
-      { name: "teamA", type: "Array (String)", description: "IDs da dupla A.", example: ["usr_diego", "usr_lucas"] },
-      { name: "teamB", type: "Array (String)", description: "IDs da dupla B.", example: ["usr_sofia", "usr_pedro"] },
-      { name: "scoreA", type: "Number (Integer)", description: "Placar final da dupla A.", example: 18 },
-      { name: "scoreB", type: "Number (Integer)", description: "Placar final da dupla B.", example: 15 },
-      { name: "winnerTeam", type: "String", description: "Vantagem do placar ('A' ou 'B').", example: "A" },
-      { name: "month", type: "String", description: "Chave do período em formato AAAA-MM.", example: "2026-06" },
-      { name: "playerIds", type: "Array (String)", description: "Array contendo os 4 participantes juntos.", example: ["usr_diego", "usr_lucas", "usr_sofia", "usr_pedro"] }
-    ]
-  }
+const mockBanterPhrases = [
+  "Chama no peito e chapa neles! 🏐🔥",
+  "Hoje tem churrasco pago pela dupla perdedora! 🥩🍺",
+  "Aceita o cone que dói menos! 🛢️💅",
+  "Essa areia tá fria ou foi pressão psicológica?",
+  "Choveu na horta do adversário! 🌧️🥬",
+  "Diz que joga muito mas só dá curtinha...",
+  "Salva uma bola dessa e eu pago o açaí!"
 ];
 
-export const queriesExplanation = {
-  ranking: {
-    title: "Como calcular o Ranking",
-    explanation: "Em vez de calcular os pontos dinamicamente somando partidas, consulte diretamente a coleção `/players` ordenada pelo campo `points` de forma decrescente. Isso consome exatamente 1 leitura por jogador retornado na paginação.",
-    dartCode: `// Consulta ideal para a tabela de líderes (Leaderboard) em Flutter
-QuerySnapshot liders = await FirebaseFirestore.instance
-    .collection('players')
-    .orderBy('points', descending: true)
-    .limit(20)
-    .get();`
-  },
-  aproveitamento: {
-    title: "Como calcular o Aproveitamento (Vitórias/Derrotas)",
-    explanation: "O aproveitamento individual é computado através do campo `winRate` pré-registrado. Pelo fato de estar salvo diretamente em cada documento, você pode listar os jogadores com maior aproveitamento (que jogaram um número mínimo de partidas) instantaneamente com filtragem server-side.",
-    formula: "Aproveitamento % = (vitórias / total_de_partidas) * 100",
-    dartCode: `// Listagem ordenada por aproveitamento de jogadores experientes
-QuerySnapshot topWinRate = await FirebaseFirestore.instance
-    .collection('players')
-    .where('totalMatches', isGreaterThanOrEqualTo: 5) // Evita distorções de quem jogou 1 partida só e venceu
-    .orderBy('totalMatches')
-    .orderBy('winRate', descending: true)
-    .get();`
-  },
-  evolucao: {
-    title: "Como calcular a Evolução Mensal",
-    explanation: "Busque a subcoleção `/players/{playerId}/monthlyStats` ordenada por mês de maneira crescente. Cada documento dará os pontos, vitórias e derrotas acumuladas de um mês específico. Monte o gráfico de linha relacionando os meses no eixo X e os pontos ou vitórias no eixo Y.",
-    dartCode: `// Obter histórico de evolução para o gráfico do jogador
-QuerySnapshot evolucao = await FirebaseFirestore.instance
-    .collection('players')
-    .doc(playerId)
-    .collection('monthlyStats')
-    .orderBy('month', descending: false)
-    .get();
+export default function ResenhaChat({ players, loggedPlayerId }: ResenhaChatProps) {
+  const activePlayer = players.find(p => p.id === loggedPlayerId) || players[0];
 
-// No Flutter, mapeie os documentos diretamente para renderizar na biblioteca charts_flutter ou fl_chart
-List<MonthlyStat> stats = evolucao.docs.map((doc) => MonthlyStat.fromFirestore(doc)).toList();`
-  },
-  transacao: {
-    title: "Garantindo a Consistência com Transações (Firestore Transaction)",
-    explanation: "Ao registrar uma partida, você PRECISA salvar o Match e atualizar as estatísticas de cada um dos 4 jogadores participantes e de suas respectivas DUPLAS parceiras de forma atômica no Firestore. O código abaixo mostra como aplicar isso atômicamente no Flutter.",
-    dartCode: `Future<void> registrarPartida(Match match) {
-  final firestore = FirebaseFirestore.instance;
-  final matchRef = firestore.collection('matches').doc();
-  
-  return firestore.runTransaction((transaction) async {
-    // 1. Grava a partida
-    transaction.set(matchRef, match.toMap());
-    
-    // Lista de ids de todos os jogadores envolvidos
-    List<String> todosJogadores = [...match.teamA, ...match.teamB];
-    bool duplaAvenceu = match.winnerTeam == 'A';
-    
-    // Atualização dos 4 jogadores individuais
-    for (String pId in todosJogadores) {
-      final playerRef = firestore.collection('players').doc(pId);
-      final monthStatsRef = playerRef.collection('monthlyStats').doc(match.month);
-      
-      DocumentSnapshot playerSnap = await transaction.get(playerRef);
-      DocumentSnapshot monthSnap = await transaction.get(monthStatsRef);
-      
-      bool isTeamA = match.teamA.contains(pId);
-      bool isWinner = (isTeamA && duplaAvenceu) || (!isTeamA && !duplaAvenceu);
-      
-      int ptsGanhos = isWinner ? 3 : 1; 
-      int novaVitoria = isWinner ? 1 : 0;
-      int novaDerrota = isWinner ? 0 : 1;
-      
-      if (playerSnap.exists) {
-        int currentWins = playerSnap.get('wins') ?? 0;
-        int currentLosses = playerSnap.get('losses') ?? 0;
-        int currentPoints = playerSnap.get('points') ?? 0;
-        
-        int nextWins = currentWins + novaVitoria;
-        int nextLosses = currentLosses + novaDerrota;
-        int nextTotal = nextWins + nextLosses;
-        double nextWinRate = nextTotal > 0 ? (nextWins / nextTotal) : 0.0;
-        
-        transaction.update(playerRef, {
-          'wins': nextWins,
-          'losses': nextLosses,
-          'totalMatches': nextTotal,
-          'winRate': nextWinRate,
-          'points': currentPoints + ptsGanhos
-        });
-      }
-      
-      // Atualiza Valores Mensais
-      if (monthSnap.exists) {
-        transaction.update(monthStatsRef, {
-          'wins': (monthSnap.get('wins') ?? 0) + novaVitoria,
-          'losses': (monthSnap.get('losses') ?? 0) + novaDerrota,
-          'points': (monthSnap.get('points') ?? 0) + ptsGanhos
-        });
-      } else {
-        transaction.set(monthStatsRef, {
-          'month': match.month,
-          'wins': novaVitoria,
-          'losses': novaDerrota,
-          'points': ptsGanhos
-        });
-      }
+  const [activeChannel, setActiveChannel] = useState<'geral' | 'arena_salvador' | 'parceria'>('geral');
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'msg_1',
+      senderId: 'usr_diego',
+      senderName: 'Diego Spinola',
+      senderPhoto: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=120',
+      text: "Hoje a resenha na Arena Balbininho tá quente! Quem vai encarar?",
+      timestamp: "17:40",
+      channel: 'geral'
+    },
+    {
+      id: 'msg_2',
+      senderId: 'usr_bruninho',
+      senderName: 'Bruninho Cruz',
+      senderPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120',
+      text: "Diego só joga na diagonal curta né, se der profundidade ele cansa rápido kkkk 🏃‍♂️💨",
+      timestamp: "17:42",
+      channel: 'geral',
+      isBanter: true
+    },
+    {
+      id: 'msg_3',
+      senderId: 'usr_paulo',
+      senderName: 'Paulo Roberto',
+      senderPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120',
+      text: "Se preparem que o vento na Arena Pântano tá fortíssimo hoje. Preparem o controle de chapa!",
+      timestamp: "17:45",
+      channel: 'arena_salvador'
+    },
+    {
+      id: 'msg_4',
+      senderId: 'usr_rafinha',
+      senderName: 'Rafinha Alcantara',
+      senderPhoto: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=120',
+      text: "A dupla dinâmica de Pituba tá treinando firme pras 19:00. Sem moleza!",
+      timestamp: "17:48",
+      channel: 'parceria'
     }
+  ]);
 
-    // 2. Grava e Atualiza Estatísticas das Duplas parceiras envolvidas (Team A e Team B)
-    await atualizarEstatisticasDupla(transaction, match.teamA, teamAVon: duplaAvenceu, ano: match.month.split('-')[0]);
-    await atualizarEstatisticasDupla(transaction, match.teamB, teamAVon: !duplaAvenceu, ano: match.month.split('-')[0]);
-  });
+  const [inputText, setInputText] = useState('');
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Handle send message
+  const handleSendMessage = (textToSend?: string) => {
+    const finalVal = textToSend || inputText;
+    if (!finalVal.trim()) return;
+
+    const newMsg: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      senderId: activePlayer.id,
+      senderName: activePlayer.name,
+      senderPhoto: activePlayer.photoUrl,
+      text: finalVal,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      channel: activeChannel,
+      isBanter: finalVal.includes('!') || finalVal.includes('kkk')
+    };
+
+    setMessages(prev => [...prev, newMsg]);
+    if (!textToSend) setInputText('');
+
+    // Simulate reactive responses from high-ranking players to show real-time architecture feedback!
+    if (Math.random() > 0.3) {
+      setTimeout(() => {
+        const opposingAtletas = players.filter(p => p.id !== loggedPlayerId);
+        if (opposingAtletas.length === 0) return;
+        const randomAth = opposingAtletas[Math.floor(Math.random() * opposingAtletas.length)];
+        
+        const responseMsg: ChatMessage = {
+          id: `msg_bot_${Date.now()}`,
+          senderId: randomAth.id,
+          senderName: randomAth.name,
+          senderPhoto: randomAth.photoUrl,
+          text: mockBanterPhrases[Math.floor(Math.random() * mockBanterPhrases.length)],
+          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          channel: activeChannel,
+          isBanter: true
+        };
+
+        setMessages(prev => [...prev, responseMsg]);
+      }, 1500);
+    }
+  };
+
+  const handleClearChat = () => {
+    setMessages([]);
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start" id="resenha-chat-component">
+      
+      {/* Left Column: Chat Room Interface (7 columns) */}
+      <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col overflow-hidden h-[600px]">
+        
+        {/* Chat Room Header */}
+        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
+              <MessageSquare className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs sm:text-sm tracking-tight">Resenha da Liga Salvador</h3>
+              <p className="text-[10px] text-indigo-200">Canal interativo com sincronização NoSQL simulada</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-ping"></span>
+            <span className="text-[9px] font-mono text-emerald-400 font-bold">12 ATIVOS</span>
+          </div>
+        </div>
+
+        {/* Channel SELECT BAR */}
+        <div className="bg-slate-50 border-b border-slate-150 p-2 flex gap-1">
+          <button
+            onClick={() => setActiveChannel('geral')}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeChannel === 'geral' 
+                ? 'bg-indigo-600 text-white shadow-sm' 
+                : 'text-slate-650 hover:bg-slate-200'
+            }`}
+          >
+            💬 Canal Geral
+          </button>
+          <button
+            onClick={() => setActiveChannel('arena_salvador')}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeChannel === 'arena_salvador' 
+                ? 'bg-indigo-600 text-white shadow-sm' 
+                : 'text-slate-650 hover:bg-slate-200'
+            }`}
+          >
+            🏟️ Mural Arenas
+          </button>
+          <button
+            onClick={() => setActiveChannel('parceria')}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              activeChannel === 'parceria' 
+                ? 'bg-indigo-600 text-white shadow-sm' 
+                : 'text-slate-650 hover:bg-slate-200'
+            }`}
+          >
+            🤝 Procurar Dupla
+          </button>
+        </div>
+
+        {/* Message Feed container */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50">
+          
+          <div className="text-center py-2">
+            <span className="text-[9px] bg-slate-150 text-slate-500 font-bold px-2 py-0.5 rounded-full uppercase tracking-widest text-[8px]">
+              {activeChannel === 'geral' && 'Canal Geral de Futevôlei Soteropolitano'}
+              {activeChannel === 'arena_salvador' && 'Mural Oficial de Arenas Parceiras'}
+              {activeChannel === 'parceria' && 'Quadro de Recrutamento de Duplas'}
+            </span>
+          </div>
+
+          {messages.filter(m => m.channel === activeChannel).length === 0 ? (
+            <div className="text-center py-12 space-y-2">
+              <span className="text-3xl">🕊️</span>
+              <p className="text-[11px] text-slate-400">Nenhuma resenha aqui ainda... Seja o primeiro a mandar!</p>
+            </div>
+          ) : (
+            messages.filter(m => m.channel === activeChannel).map((msg) => {
+              const isMe = msg.senderId === loggedPlayerId;
+              return (
+                <div 
+                  key={msg.id} 
+                  className={`flex items-start gap-2.5 max-w-[85%] ${
+                    isMe ? 'ml-auto flex-row-reverse' : ''
+                  }`}
+                >
+                  <img 
+                    src={msg.senderPhoto} 
+                    alt={msg.senderName} 
+                    className="w-8 h-8 rounded-full border border-slate-200 shrink-0 object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="space-y-1">
+                    <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 ${
+                      isMe ? 'justify-end' : ''
+                    }`}>
+                      <span className="font-bold text-slate-700">{msg.senderName}</span>
+                      <span>•</span>
+                      <span>{msg.timestamp}</span>
+                    </div>
+
+                    <div className={`p-3 rounded-2xl relative ${
+                      isMe 
+                        ? 'bg-indigo-600 text-white rounded-tr-none' 
+                        : msg.isBanter 
+                        ? 'bg-rose-50 text-slate-800 border border-rose-100 rounded-tl-none'
+                        : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none shadow-xs'
+                    }`}>
+                      {msg.isBanter && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white rounded-full text-[8px] px-1 font-mono uppercase font-black tracking-wider shadow-sm scale-90">
+                          Resenha🔥
+                        </span>
+                      )}
+                      <p className="text-xs leading-relaxed">{msg.text}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={chatBottomRef} />
+        </div>
+
+        {/* Quick Banter Suggestions Box */}
+        <div className="bg-slate-100 p-2.5 border-t border-slate-150 flex gap-2 overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
+          <span className="text-[10px] text-slate-400 font-extrabold pr-1 flex items-center shrink-0">
+            Provocações Rápidas:
+          </span>
+          {mockBanterPhrases.map((phrase, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSendMessage(phrase)}
+              className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-full text-[10px] font-semibold text-slate-650 cursor-pointer transition-colors shadow-xs"
+            >
+              🚀 {phrase}
+            </button>
+          ))}
+        </div>
+
+        {/* Chat input box */}
+        <div className="p-3 border-t border-slate-150 flex gap-2 bg-white shrink-0">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSendMessage();
+            }}
+            placeholder={`Falando como ${activePlayer.name}...`}
+            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white"
+          />
+          <button
+            onClick={() => handleSendMessage()}
+            className="p-2.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl transition-all shadow cursor-pointer active:scale-95"
+            title="Enviar mensagem"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+
+      </div>
+
+      {/* Right Column: Architectural impact explanation & telemetry rules (5 columns) */}
+      <div className="lg:col-span-5 space-y-5">
+        
+        {/* Core Architectural Verdict Box */}
+        <div className="bg-gradient-to-br from-indigo-950 to-slate-900 text-white p-5 rounded-3xl border border-indigo-500/10 shadow-sm space-y-4">
+          <div className="space-y-1">
+            <span className="text-indigo-400 text-[10px] font-black uppercase tracking-widest block">Análise de Engenharia NoSQL</span>
+            <h3 className="font-black text-sm tracking-tight text-white flex items-center gap-1.5">
+              <Share2 className="w-4 h-4 text-indigo-400" />
+              <span>Podemos implantar agora?</span>
+            </h3>
+          </div>
+
+          <div className="space-y-3.5 text-xs text-slate-300 leading-relaxed">
+            <p>
+              <strong>Sim! E mais importante:</strong> Utilizando o Firebase Firestore, resolvemos isso de forma 100% serverless, sem gastar nada com servidores WebSocket próprios.
+            </p>
+            <p>
+              O SDK do Firestore possui suporte nativo ao método <code className="text-amber-400 bg-white/5 px-1 py-0.5 rounded font-mono font-bold text-[10.5px]">onSnapshot()</code>. 
+              Ele escuta mudanças em coleções de forma bidirecional através de canais gRPC e re-renderiza a tela do usuário em milissegundos com barreira de consumo insignificante.
+            </p>
+          </div>
+
+          {/* Key Advantages Matrix */}
+          <div className="border-t border-white/5 pt-3.5 space-y-2 text-[11px]">
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5 p-0.5 bg-emerald-500/15 rounded text-emerald-400">
+                <CheckCheck className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <strong className="text-white block font-bold">Custo-Benefício Extremo</strong>
+                <span className="text-slate-400">Ao contrário de WebSockets abertos em servidores dedicados (que cobram por hora online), o Firestore cobra apenas por leituras/escritas. Se ninguém estiver conversando, o custo é literal zero.</span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5 p-0.5 bg-emerald-500/15 rounded text-emerald-400">
+                <CheckCheck className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <strong className="text-white block font-bold">Resiliência Offline Coerente</strong>
+                <span className="text-slate-400">Se a conexão cair na quadra, as mensagens do atleta ficam em fila local (cache) e são enviadas automaticamente ao recuperar sinal.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Database Colection Design Draft */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-50 pb-2">
+            <Info className="w-4.5 h-4.5 text-indigo-500" />
+            <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">Novo Schema NoSQL: Coleção de Resenhas</h4>
+          </div>
+
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Para acomodar essa funcionalidade sem impactar o desempenho do ranking das arenas, estruturamos uma coleção de mensagens isolada na raiz:
+          </p>
+
+          <pre className="text-[10px] font-mono text-slate-700 bg-slate-50 p-3 rounded-xl overflow-x-auto whitespace-pre leading-relaxed border border-slate-200">
+{`// COLEÇÃO FIRESTORE: /resenhas/{messageId}
+{
+  "senderId":  "string (Player ID)",
+  "senderName": "string",
+  "senderPhoto": "string (URL)",
+  "channel":    "string (geral | arena | parceria)",
+  "text":       "string (máximo 250 caracteres)",
+  "timestamp":  "timestamp (data/hora oficial)",
+  "isBanter":   "boolean (se possui provocações)"
+}`}
+          </pre>
+
+          {/* Security Rules Snippet */}
+          <div className="space-y-2">
+            <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wide">Regra de Segurança Recomendada (firestore.rules)</span>
+            <div className="bg-slate-900 rounded-xl p-3 text-[10px] font-mono text-slate-300 overflow-x-auto border border-slate-800 leading-relaxed">
+{`match /resenhas/{messageId} {
+  // Atletas logados podem ler; criação permitida se o payload bater com a identidade autêntica
+  allow read: if request.auth != null;
+  allow create: if request.auth != null 
+                && request.resource.data.senderId == request.auth.uid
+                && request.resource.data.text.size() <= 250;
+  // Mensagens são imutáveis após registradas
+  allow update, delete: if false; 
+}`}
+            </div>
+          </div>
+          
+          <button
+            onClick={handleClearChat}
+            className="w-full py-2 bg-slate-100 hover:bg-rose-50 text-slate-650 hover:text-rose-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Limpar Histórico de Testes</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  );
 }
-
-// Auxiliar para a dupla
-Future<void> atualizarEstatisticasDupla(Transaction transaction, List<String> playerIds, {required bool teamAVon, required String ano}) async {
-  // Ordena alfabeticamente para gerar o ID unificado
-  List<String> sortedIds = [...playerIds]..sort();
-  String duoId = sortedIds.join('_');
-  final duoRef = FirebaseFirestore.instance.collection('duos').doc(duoId);
-  DocumentSnapshot duoSnap = await transaction.get(duoRef);
-
-  int vitoria = teamAVon ? 1 : 0;
-  int derrota = teamAVon ? 0 : 1;
-  int pts = teamAVon ? 3 : 1;
-
-  if (duoSnap.exists) {
-    int wins = duoSnap.get('wins') ?? 0;
-    int losses = duoSnap.get('losses') ?? 0;
-    int currentPoints = duoSnap.get('points') ?? 0;
-    Map<String, dynamic> yearlyWins = Map<String, dynamic>.from(duoSnap.get('yearlyWins') ?? {});
-    
-    int total = wins + losses + 1;
-    int nextWins = wins + vitoria;
-    yearlyWins[ano] = (yearlyWins[ano] ?? 0) + vitoria;
-
-    transaction.update(duoRef, {
-      'wins': nextWins,
-      'losses': losses + derrota,
-      'totalMatches': total,
-      'winRate': nextWins / total,
-      'points': currentPoints + pts,
-      'yearlyWins': yearlyWins
-    });
-  } else {
-    // Se a dupla nunca jogou junta, cria os registros iniciais
-    transaction.set(duoRef, {
-      'id': duoId,
-      'playerIds': sortedIds,
-      'wins': vitoria,
-      'losses': derrota,
-      'totalMatches': 1,
-      'winRate': vitoria / 1.0,
-      'points': pts,
-      'yearlyWins': { ano: vitoria }
-    });
-  }
-}`
-  },
-  rankingDuplas: {
-    title: "Ranking e Melhor Dupla (Sinergia de Parceiros)",
-    explanation: "Consulte a coleção `/duos` ordenando pelo número de vitórias acumuladas de forma decrescente para saber Instantaneamente a melhor dupla do campeonato. Para restringir ao Torneio Anual de um ano específico (ex: '2026'), use `yearlyWins.2026`.",
-    dartCode: `// Listagem geral de sinergia de duplas em Flutter
-QuerySnapshot rankingDuplas = await FirebaseFirestore.instance
-    .collection('duos')
-    .orderBy('points', descending: true)
-    .limit(10)
-    .get();
-
-// Dupla Campeã do Torneio Anual 2026 (quem venceu mais partidas no ano)
-QuerySnapshot campeaoAnual = await FirebaseFirestore.instance
-    .collection('duos')
-    .orderBy('yearlyWins.2026', descending: true)
-    .limit(1)
-    .get();`
-  },
-  compilacaoArena: {
-    title: "Comparativo de Arena Ganhadora do Ano",
-    explanation: "Filtre a coleção raiz `/arenas` pelo número de partidas disputadas naquele ano ou use os dados de faturamento/pontuação da arena. Para saber as arenas estrelas com melhor faturamento estrutural ou jogadores locais mais fortes, consulte `/arenas` ordenada por `matchesPlayed` ou pelo filtro do mapa `yearlyVictories.2026`.",
-    dartCode: `// Descobre qual a Melhor Arena / Arena de Maior Engajamento do ano
-QuerySnapshot melhorArena = await FirebaseFirestore.instance
-    .collection('arenas')
-    .orderBy('yearlyVictories.2026', descending: true)
-    .limit(1)
-    .get();
-
-// Saída em Flutter para renderizar o comparativo de todas as 5 arenas (Pântano, Marisol, etc)
-QuerySnapshot todasArenas = await FirebaseFirestore.instance
-    .collection('arenas')
-    .orderBy('matchesPlayed', descending: true)
-    .get();`
-  }
-};
