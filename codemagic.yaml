@@ -2,7 +2,7 @@
 workflows:
   android-build:
     name: Compilar Aplicativo Android (APK / AAB)
-    instance_type: mac_mini_co
+    instance_type: mac_mini_m1
     max_build_duration: 60
     environment:
       node: latest
