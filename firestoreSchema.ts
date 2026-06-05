@@ -3,346 +3,274 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Smartphone, Copy, Check, Terminal, Code, Cpu, Sparkles, Layers } from 'lucide-react';
+import React from 'react';
+import { Player, Duo, Arena, Match } from '../types';
+import { 
+  Bell, 
+  Flame, 
+  TrendingUp, 
+  TrendingDown, 
+  UserPlus, 
+  Calendar, 
+  Trophy, 
+  Award, 
+  Zap, 
+  AlertTriangle 
+} from 'lucide-react';
 
-export default function FlutterViewer() {
-  const [activeFile, setActiveFile] = useState<'app' | 'models' | 'notifications'>('app');
-  const [copied, setCopied] = useState(false);
-
-  const fileContents = {
-    models: `// models.dart
-// 
-// SPDF-License-Identifier: Apache-2.0
-// Senior Flutter Developer Case Study: Circuit Sports NoSQL Models for Futevôlei
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-class Player {
-  final String id;
-  final String name;
-  final String photoUrl;
-  final String arenaId;
-  final int wins;
-  final int losses;
-  final int totalMatches;
-  final double winRate;
-  final int points;
-  final String createdAt;
-  final int presenceDays;
-  final List<String> presentDates;
-
-  Player({
-    required this.id,
-    required this.name,
-    required this.photoUrl,
-    required this.arenaId,
-    required this.wins,
-    required this.losses,
-    required this.totalMatches,
-    required this.winRate,
-    required this.points,
-    required this.createdAt,
-    required this.presenceDays,
-    required this.presentDates,
-  });
-
-  factory Player.fromMap(Map<String, dynamic> map, String docId) {
-    return Player(
-      id: docId,
-      name: map['name'] ?? '',
-      photoUrl: map['photoUrl'] ?? '',
-      arenaId: map['arenaId'] ?? '',
-      wins: map['wins'] ?? 0,
-      losses: map['losses'] ?? 0,
-      totalMatches: map['totalMatches'] ?? 0,
-      winRate: (map['winRate'] ?? 0.0).toDouble(),
-      points: map['points'] ?? 0,
-      createdAt: map['createdAt'] ?? '',
-      presenceDays: map['presenceDays'] ?? 0,
-      presentDates: List<String>.from(map['presentDates'] ?? []),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'photoUrl': photoUrl,
-      'arenaId': arenaId,
-      'wins': wins,
-      'losses': losses,
-      'totalMatches': totalMatches,
-      'winRate': winRate,
-      'points': points,
-      'createdAt': createdAt,
-      'presenceDays': presenceDays,
-      'presentDates': presentDates,
-    };
-  }
-}`,
-
-    notifications: `// notification_service.dart
-// 
-// SPDF-License-Identifier: Apache-2.0
-// Notification triggers and motivation center algorithm in pure Dart
-
-import './models.dart';
-
-class AthleteNotification {
-  final String id;
-  final String type; // 'warning' | 'info' | 'danger' | 'success' | 'stimu'
-  final String badge;
-  final String title;
-  final String description;
-
-  AthleteNotification({
-    required this.id,
-    required this.type,
-    required this.badge,
-    required this.title,
-    required this.description,
-  });
+interface DynamicNotificationsProps {
+  currentUser: Player;
+  players: Player[];
+  duos: Duo[];
+  arenas: Arena[];
+  matches: Match[];
 }
 
-class AthleteNotificationService {
-  static List<AthleteNotification> generateNotifications({
-    required Player currentUser,
-    required List<Player> players,
-    required List<Duo> duos,
-    required List<Arena> arenas,
-    required List<Match> matches,
-  }) {
-    List<AthleteNotification> list = [];
+export default function DynamicNotifications({
+  currentUser,
+  players,
+  duos,
+  arenas,
+  matches
+}: DynamicNotificationsProps) {
+  
+  // 1. Calculate General Ranking Position & Neighbor Competitors
+  const rankedPlayers = [...players].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return b.winRate - a.winRate;
+  });
+  
+  const myRankIndex = rankedPlayers.findIndex(p => p.id === currentUser.id);
+  const myRankPosition = myRankIndex + 1;
+  
+  // Who is directly above us? (Overtook us or is ahead of us)
+  const competitorAbove = myRankIndex > 0 ? rankedPlayers[myRankIndex - 1] : null;
+  // Who is directly below us? (Close to overtaking us)
+  const competitorBelow = myRankIndex < rankedPlayers.length - 1 ? rankedPlayers[myRankIndex + 1] : null;
 
-    // Order players to determine ranking positions
-    final rankedPlayers = List<Player>.from(players)
-      ..sort((a, b) {
-        if (b.points != a.points) return b.points.compareTo(a.points);
-        return b.winRate.compareTo(a.winRate);
+  // 2. High Frequency check
+  const playersSortedByFrequency = [...players].sort((a, b) => b.presenceDays - a.presenceDays);
+  const mostActivePlayer = playersSortedByFrequency[0];
+  const secondMostActivePlayer = playersSortedByFrequency[1] || mostActivePlayer;
+  
+  // 3. Low attendance alerts
+  // Ideal frequency is at least 3 active presenceDays
+  const hasLowFrequency = currentUser.presenceDays <= 2;
+
+  // Let's check when the last match of the current user was to give a "you haven't played this week" alert
+  const sortedMatchesWithMe = [...matches]
+    .filter(m => m.status === 'validated' && m.playerIds.includes(currentUser.id))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  const lastMatch = sortedMatchesWithMe[0];
+  let daysSinceLastMatch = 99;
+  if (lastMatch) {
+    const diffTime = Math.abs(new Date('2026-06-04').getTime() - new Date(lastMatch.date).getTime());
+    daysSinceLastMatch = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  // 4. Duo analysis for competition
+  // Find duos that belong to the current user
+  const myDuos = duos.filter(d => d.playerIds.includes(currentUser.id));
+  const bestMyDuo = [...myDuos].sort((a, b) => b.points - a.points)[0];
+  
+  // Best overall duo in the entire ranking (representing the top benchmark duo)
+  const topCircuitDuo = [...duos].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return b.winRate - a.winRate;
+  })[0];
+
+  // 5. Build list of alerts!
+  const notifications: {
+    id: string;
+    type: 'warning' | 'info' | 'danger' | 'success' | 'stimu';
+    badge: string;
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+  }[] = [];
+
+  // Core 1: Alert on rankings overtakes
+  if (competitorAbove) {
+    // If the competitor is extremely close (e.g., within 5 points ahead or higher winRate)
+    const ptDiff = competitorAbove.points - currentUser.points;
+    if (ptDiff > 0) {
+      notifications.push({
+        id: 'overtaken_by_above',
+        type: 'danger',
+        badge: 'Gatilho de Ultrapassagem',
+        title: `O jogador ${competitorAbove.name} ultrapassou você!`,
+        description: `Ele está em #${myRankPosition - 1} colocado com ${competitorAbove.points} pts. Você tem ${currentUser.points} pts. Vença a próxima partida para ultrapassá-lo em pontos/vitórias!`,
+        icon: <TrendingDown className="w-4 h-4 text-rose-500 shrink-0" />
       });
-
-    final myRankIndex = rankedPlayers.indexWhere((p) => p.id == currentUser.id);
-    final myRankPosition = myRankIndex != -1 ? myRankIndex + 1 : 1;
-
-    final competitorAbove = (myRankIndex > 0) ? rankedPlayers[myRankIndex - 1] : null;
-    final competitorBelow = (myRankIndex != -1 && myRankIndex < rankedPlayers.length - 1) 
-        ? rankedPlayers[myRankIndex + 1] 
-        : null;
-
-    // 1. Alert if Overtaken by competitor directly above
-    if (competitorAbove != null) {
-      final ptDiff = competitorAbove.points - currentUser.points;
-      if (ptDiff > 0) {
-        list.add(AthleteNotification(
-          id: 'overtaken_by_above',
-          type: 'danger',
-          badge: 'Gatilho de Ultrapassagem',
-          title: 'O jogador \${competitorAbove.name} ultrapassou você!',
-          description: 'Ele está em #\${myRankPosition - 1} com \${competitorAbove.points} pts. Você tem \${currentUser.points}. Vença para recapturar a posição!',
-        ));
-      }
-    }
-
-    // 2. Alert for competitor breathing down our neck
-    if (competitorBelow != null) {
-      final ptDiff = currentUser.points - competitorBelow.points;
-      if (ptDiff <= 3) {
-        list.add(AthleteNotification(
-          id: 'breath_on_neck',
-          type: 'warning',
-          badge: 'Sinal de Alerta',
-          title: 'Cuidado! \${competitorBelow.name} está colado em você!',
-          description: 'Diferença de apenas \${ptDiff} pts. Não marque bobeira esta semana!',
-        ));
-      }
-    }
-
-    // 3. Low attendance alerts
-    if (currentUser.presenceDays <= 2) {
-      list.add(AthleteNotification(
-        id: 'low_attendance_warning',
+    } else {
+      // Points are equal, but competitorabove is higher due to winRate (or secondary tiebreaker)
+      notifications.push({
+        id: 'tied_by_winrate',
         type: 'warning',
-        badge: 'Alerta de Presença',
-        title: 'Ausência Recente detectada!',
-        description: 'Você não compareceu às quadras com frequência esta semana, está ficando para trás... Marquem uma partida!',
-      ));
+        badge: 'Desempate Técnico',
+        title: `${competitorAbove.name} está na sua frente pelo aproveitamento!`,
+        description: `Vocês empatam com ${currentUser.points} pts, mas ele ultrapassou você no critério de aproveitamento (${(competitorAbove.winRate * 100).toFixed(0)}% vs ${(currentUser.winRate * 100).toFixed(0)}%). Garanta vitória no próximo jogo!`,
+        icon: <Award className="w-4 h-4 text-amber-500 shrink-0" />
+      });
     }
-
-    return list;
   }
-}`,
 
-    app: `// futevolei_app.dart
-// 
-// COMPLETE MULTIPLATFORM SOURCE CODE (Android, iOS & Web) - Theme: Modern Dark Mode
-// Features full state simulators for co-signing matches, bilateral validation, leaderboards and charts.
-
-import 'package:flutter/material.dart';
-import './models.dart';
-import './notification_service.dart';
-
-void main() => runApp(const FutevoleiApp());
-
-class FutevoleiApp extends StatelessWidget {
-  const FutevoleiApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Circuito Futevôlei Salvador',
-      themeMode: ThemeMode.dark,
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF090D1A), // custom slate black
-        primaryColor: const Color(0xFF6366F1), // high contrast indigo
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF6366F1),
-          secondary: Color(0xFF10B981), // emerald
-          surface: Color(0xFF151D30), // card color
-          error: Color(0xFFF43F5E), // rose
-        ),
-      ),
-      home: const MainLayoutScreen(),
-    );
+  if (competitorBelow) {
+    const ptDiff = currentUser.points - competitorBelow.points;
+    if (ptDiff <= 3) {
+      notifications.push({
+        id: 'breath_on_neck',
+        type: 'warning',
+        badge: 'Sinal de Alerta',
+        title: `Cuidado! ${competitorBelow.name} está colado em você!`,
+        description: `A diferença para ele é de apenas ${ptDiff} pontos (${currentUser.points} pts vs ${competitorBelow.points} pts). *Não perca o foco, ele está pronto para te passar esta semana!*`,
+        icon: <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+      });
+    }
   }
-}
 
-class MainLayoutScreen extends StatefulWidget {
-  const MainLayoutScreen({super.key});
-  @override
-  State<MainLayoutScreen> createState() => _MainLayoutScreenState();
-}
+  // Core 2: Alert on low attendance / frequency warnings
+  if (daysSinceLastMatch > 5 || hasLowFrequency) {
+    notifications.push({
+      id: 'low_attendance_warning',
+      type: 'warning',
+      badge: 'Alerta de Presença',
+      title: 'Ausência Recente detectada!',
+      description: `*Você não compareceu às quadras com frequência esta semana, está ficando para trás...* Total de presenças acumuladas: ${currentUser.presenceDays} dias. Reúna sua dupla preferida!`,
+      icon: <Calendar className="w-4 h-4 text-rose-500 shrink-0" />
+    });
+  }
 
-class _MainLayoutScreenState extends State<MainLayoutScreen> {
-  // Application business logic, responsive TabController layouts
-  // with interactive points bar charts & custom horizontal ratio bars
-  // and in-memory multi-document synchronized simulation transactions.
-  // ... Fully implemented in /src/flutter/futevolei_app.dart ...
-}`
-  };
+  // Core 3: High frequency of another player stimulus
+  if (mostActivePlayer && mostActivePlayer.id !== currentUser.id) {
+    notifications.push({
+      id: 'high_freq_other_player',
+      type: 'info',
+      badge: 'Ritmo Quente',
+      title: `Líder de Presença: ${mostActivePlayer.name} está voando!`,
+      description: `O atleta registrou recorde de frequência com ${mostActivePlayer.presenceDays} dias de treinos e jogos homologados. Vamos tentar batê-lo essa semana?`,
+      icon: <Flame className="w-4 h-4 text-emerald-500 shrink-0" />
+    });
+  }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(fileContents[activeFile]);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // Core 4: Head-to-head or competitive comparison of top disputed duos to stimulate a declining duo
+  if (topCircuitDuo) {
+    // If we have an active duo
+    if (bestMyDuo) {
+      const isDeclining = bestMyDuo.losses > bestMyDuo.wins || bestMyDuo.points < topCircuitDuo.points * 0.7;
+      if (isDeclining && bestMyDuo.id !== topCircuitDuo.id) {
+        notifications.push({
+          id: 'duo_declining_stimulation',
+          type: 'stimu',
+          badge: 'Estímulo de Sinergia',
+          title: `Estimule sua dupla com ${bestMyDuo.playerNames.find(n => !n.includes(currentUser.name.split(' ')[0])) || 'parceiro'}!`,
+          description: `Seu melhor resultado em dupla tem ${bestMyDuo.wins}V - ${bestMyDuo.losses}D. A dupla líder ¹# ${topCircuitDuo.playerNames.join(' + ')} está dominando o ranking com ${topCircuitDuo.points} pts. *Mostre do que sua dupla é capaz e desafie novos oponentes!*`,
+          icon: <Zap className="w-4 h-4 text-purple-500 shrink-0" />
+        });
+      } else {
+        // Just standard competitive challenge
+        notifications.push({
+          id: 'duo_benchmark',
+          type: 'stimu',
+          badge: 'Meta de Duplas',
+          title: 'Confronto entre as duplas mais disputadas!',
+          description: `Sua dupla com ${bestMyDuo.playerNames.find(n => !n.includes(currentUser.name.split(' ')[0])) || 'parceiro'} está em #${bestMyDuo.points} pts. O topo é a dupla ${topCircuitDuo.playerNames.join(' + ')} (${topCircuitDuo.points} pts). Marquem uma nova rodada na Arena hoje!`,
+          icon: <Trophy className="w-4 h-4 text-yellow-500 shrink-0" />
+        });
+      }
+    } else {
+      // Player doesn't have an established duo in the DB yet, stimulate them to form one!
+      notifications.push({
+        id: 'no_duo_warning',
+        type: 'info',
+        badge: 'Formação de Parceria',
+        title: 'Você ainda não tem uma Dupla Consolidada!',
+        description: `O futevôlei floresce com parceria. O ranking de duos é liderado por ${topCircuitDuo.playerNames.join(' + ')}. Chame um atleta parceiro e registre uma nova partida na aba 'Lançar Partida'.`,
+        icon: <UserPlus className="w-4 h-4 text-indigo-500 shrink-0" />
+      });
+    }
+  }
+
+  // Core 5: Data-driven general triggers
+  if (currentUser.totalMatches > 0) {
+    const projectedWinrateIfWin = ((currentUser.wins + 1) / (currentUser.totalMatches + 1)) * 100;
+    notifications.push({
+      id: 'winrate_projection',
+      type: 'success',
+      badge: 'Estímulo Estatístico',
+      title: 'Meta de Rendimento Técnico individual!',
+      description: `Seu aproveitamento atual é de ${(currentUser.winRate * 100).toFixed(0)}%. Se garantir e homologar uma vitória na próxima partida, seu índice subirá para ${projectedWinrateIfWin.toFixed(0)}%!`,
+      icon: <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" />
+    });
+  }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6" id="flutter-viewer-root">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
-        <div className="flex items-center gap-3">
-          <span className="p-2.5 bg-rose-950/40 border border-rose-900/35 text-rose-400 rounded-2xl shrink-0">
-            <Smartphone className="w-5 h-5" />
+    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 mb-6" id="athlete-notifications-center">
+      <div className="flex items-center justify-between mb-4 border-b border-slate-800/80 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="p-1.5 bg-indigo-950 border border-indigo-800 text-indigo-400 rounded-xl shrink-0 relative">
+            <Bell className="w-4 h-4" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-600 rounded-full"></span>
           </span>
           <div>
-            <h3 className="font-extrabold text-white text-base">📲 Arquitetura Flutter Multi-Plataforma</h3>
-            <p className="text-xs text-slate-400">Implementação de nível produção em Tema Escuro (Dark Mode) para Android, iOS e Web.</p>
+            <h3 className="font-extrabold text-white text-sm">💡 Central de Estímulos e Alertas do Atleta</h3>
+            <p className="text-[10px] text-slate-400">Notificações e insights gerados em tempo real de acordo com as regras fiduciárias do futevôlei.</p>
           </div>
         </div>
-
-        {/* File Tabs */}
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/60 self-start md:self-auto">
-          <button
-            onClick={() => setActiveFile('app')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeFile === 'app' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            futevolei_app.dart (Telas)
-          </button>
-          <button
-            onClick={() => setActiveFile('models')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeFile === 'models' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            models.dart (Coleções)
-          </button>
-          <button
-            onClick={() => setActiveFile('notifications')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              activeFile === 'notifications' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            notification_service.dart
-          </button>
-        </div>
+        
+        <span className="text-[8.5px] font-bold text-indigo-300 bg-indigo-950/80 border border-indigo-900/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+          {notifications.length} Alertas
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Dark Mode Screen preview features list */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="p-4 bg-indigo-950/20 border border-indigo-900/40 rounded-2xl space-y-2.5">
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-extrabold uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 fill-indigo-500/20" />
-              <span>Destaques de Design e UI</span>
-            </div>
-            <ul className="text-[11px] text-slate-300 space-y-1.5 list-inside list-disc leading-relaxed">
-              <li><strong>Modern Dark Theme</strong>: Utiliza as especificações de material 3 e contrastes de paletas em Dark Slate (Color(0xFF090D1A)) com nuances neon de Indigo, Emerald e Rose.</li>
-              <li><strong>UI Fluida & Responsiva</strong>: Utiliza GridView.count, LayoutBuilder e MediaQueries adaptando-se confortavelmente desde relógios até telas de navegadores Web.</li>
-              <li><strong>Notificações Inteligentes</strong>: Transpilação milimétrica do algoritmo de ultrapassagem em tempo de execução, alimentando cartões com feedback imediato.</li>
-            </ul>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="notifications-grid-container">
+        {notifications.map((notif) => {
+          // Color styles depending on warning type
+          let cardBorder = 'border-slate-800 bg-slate-950/40 hover:bg-slate-950/70';
+          let badgeStyle = 'bg-slate-900 text-slate-400 border-slate-800/50';
+          
+          if (notif.type === 'danger') {
+            cardBorder = 'border-rose-950 bg-rose-950/10 hover:bg-rose-950/15 border-l-4 border-l-rose-500';
+            badgeStyle = 'bg-rose-950/40 text-rose-300 border-rose-900/30';
+          } else if (notif.type === 'warning') {
+            cardBorder = 'border-amber-950 bg-amber-950/8 hover:bg-amber-950/12 border-l-4 border-l-amber-500';
+            badgeStyle = 'bg-amber-950/45 text-amber-300 border-amber-900/30';
+          } else if (notif.type === 'success') {
+            cardBorder = 'border-emerald-950 bg-emerald-950/8 hover:bg-emerald-950/12 border-l-4 border-l-emerald-500';
+            badgeStyle = 'bg-emerald-950/45 text-emerald-300 border-emerald-900/30';
+          } else if (notif.type === 'stimu') {
+            cardBorder = 'border-purple-950 bg-purple-950/8 hover:bg-purple-950/12 border-l-4 border-l-purple-500';
+            badgeStyle = 'bg-purple-950/40 text-purple-300 border-purple-900/30';
+          }
 
-          <div className="p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl space-y-3">
-            <div className="flex items-center gap-1.5 text-slate-400 text-xs font-extrabold uppercase font-mono">
-              <Terminal className="w-3.5 h-3.5 text-slate-500" />
-              <span>Arquivos Criados</span>
-            </div>
-            <div className="space-y-1.5 text-[10px]">
-              <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-                <span className="text-white font-mono font-medium">/src/flutter/models.dart</span>
-                <span className="text-emerald-500 font-bold uppercase text-[9px]">Salvo</span>
-              </div>
-              <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-                <span className="text-white font-mono font-medium">/src/flutter/notification_service.dart</span>
-                <span className="text-emerald-500 font-bold uppercase text-[9px]">Salvo</span>
-              </div>
-              <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-                <span className="text-white font-mono font-medium">/src/flutter/futevolei_app.dart</span>
-                <span className="text-emerald-500 font-bold uppercase text-[9px]">Salvo</span>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-500 italic leading-snug">
-              Esses códigos foram gerados no workspace do projeto e estão disponíveis para compilação direta utilizando o Flutter SDK.
-            </p>
-          </div>
-        </div>
-
-        {/* Code terminal emulator */}
-        <div className="lg:col-span-8 flex flex-col space-y-2.5">
-          <div className="flex justify-between items-center bg-slate-950 px-4 py-2 rounded-t-xl border-t border-x border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span className="ml-2 text-[10px] text-slate-500 font-mono">Dart Output Console</span>
-            </div>
-            
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-bold transition px-2 py-0.5"
+          return (
+            <div 
+              key={notif.id} 
+              className={`p-4 rounded-2xl border transition flex gap-3 items-start justify-between ${cardBorder}`}
+              id={`notif-${notif.id}`}
             >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Código Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar Arquivo</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="bg-slate-950 rounded-b-xl border-b border-x border-slate-800 p-4 font-mono text-[10.5px] text-indigo-100 overflow-x-auto h-96 shadow-inner relative">
-            <pre className="whitespace-pre leading-relaxed select-all">
-              {fileContents[activeFile]}
-            </pre>
-          </div>
-        </div>
+              <div className="flex gap-3 items-start">
+                <div className="p-2 bg-slate-900 rounded-xl border border-slate-800 shrink-0 mt-0.5">
+                  {notif.icon}
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase border font-mono tracking-wider ${badgeStyle}`}>
+                      {notif.badge}
+                    </span>
+                  </div>
+                  <h4 className="text-white text-xs font-bold leading-tight">{notif.title}</h4>
+                  <p className="text-[10px] text-slate-300 leading-relaxed font-sans italic">
+                    {notif.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

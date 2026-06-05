@@ -4,356 +4,282 @@
  */
 
 import React, { useState } from 'react';
-import { Player, Arena, Match, SimulationLog } from '../types';
-import { Play, RotateCcw, AlertCircle, Sparkles, Terminal, FileCode, Check } from 'lucide-react';
+import { firestoreSchema, queriesExplanation, CollectionSchema } from '../data/firestoreSchema';
+import { Database, Copy, Check, Info, Server, CodeSquare, Code, HelpCircle } from 'lucide-react';
 
-interface MatchSimulatorProps {
-  players: Player[];
-  arenas: Arena[];
-  onRecordMatch: (match: Match, logs: SimulationLog[]) => void;
-  logs: SimulationLog[];
-  clearLogs: () => void;
-  loggedPlayerId: string;
-}
+export default function SchemaViewer() {
+  const [selectedColIndex, setSelectedColIndex] = useState(1); // Default to Players
+  const [copied, setCopied] = useState<string | null>(null);
+  const [showCodeTab, setShowCodeTab] = useState<'explanation' | 'dart'>('explanation');
 
-export default function MatchSimulator({
-  players,
-  arenas,
-  onRecordMatch,
-  logs,
-  clearLogs,
-  loggedPlayerId
-}: MatchSimulatorProps) {
-  const [arenaId, setArenaId] = useState<string>(arenas[0]?.id || '');
-  const [playerA1, setPlayerA1] = useState<string>(players[0]?.id || '');
-  const [playerA2, setPlayerA2] = useState<string>(players[1]?.id || '');
-  const [playerB1, setPlayerB1] = useState<string>(players[2]?.id || '');
-  const [playerB2, setPlayerB2] = useState<string>(players[3]?.id || '');
+  const selectedCol = firestoreSchema[selectedColIndex];
 
-  const [scoreA, setScoreA] = useState<number>(18);
-  const [scoreB, setScoreB] = useState<number>(14);
-  const [matchDate, setMatchDate] = useState<string>('2026-06-04');
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<boolean>(false);
-
-  // Validate selections to prevent duplicate players in the same match
-  const handleSimulate = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setSuccessMsg(false);
-
-    const selectedIds = [playerA1, playerA2, playerB1, playerB2];
-    const uniqueIds = new Set(selectedIds);
-
-    if (uniqueIds.size < 4) {
-      setErrorMsg('Erro de validação: Um jogador não pode disputar a partida em duas posições simultâneas! Selecione 4 atletas diferentes.');
-      return;
-    }
-
-    if (scoreA === scoreB) {
-      setErrorMsg('Erro de validação: No futevôlei não há empate! Ajuste o placar com uma dupla vencedora.');
-      return;
-    }
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(matchDate)) {
-      setErrorMsg('Erro de validação: A data deve estar no formato AAAA-MM-DD (Ex: 2026-06-04).');
-      return;
-    }
-
-    const selectedArena = arenas.find(a => a.id === arenaId)!;
-    const winnerTeam = scoreA > scoreB ? 'A' : 'B';
-    const matchId = `match_${Date.now().toString().substring(5)}`;
-    const matchMonth = matchDate.substring(0, 7);
-
-    // Assert that the currently logged-in player is in either Team A or Team B
-    if (!selectedIds.includes(loggedPlayerId)) {
-      const activeName = players.find(p => p.id === loggedPlayerId)?.name || 'Atleta Autenticado';
-      setErrorMsg(`Erro de Prevenção: Como atleta autenticado atual (${activeName}), você deve figurar em uma das duas duplas para poder arbitrar e registrar esta partida.`);
-      return;
-    }
-
-    const newMatch: Match = {
-      id: matchId,
-      date: matchDate,
-      arenaId,
-      arenaName: selectedArena.name,
-      teamA: [playerA1, playerA2],
-      teamB: [playerB1, playerB2],
-      scoreA,
-      scoreB,
-      winnerTeam,
-      month: matchMonth,
-      playerIds: selectedIds,
-      status: 'pending',
-      createdBy: loggedPlayerId,
-      validatedBy: [loggedPlayerId] // Self-validation by creation
-    };
-
-    // Calculate simulated logs to show precisely what is happening inside Firestore under this anti-fraud model
-    const simulatedLogs: SimulationLog[] = [];
-
-    simulatedLogs.push({
-      action: 'INFO',
-      path: 'SECURITY_CHECK_INIT',
-      payload: null,
-      explanation: 'Inicializando Verificação de Identidade e Gravação no Firestore.'
+  // Helper to construct a representative JSON template
+  const generateJSONSample = (schema: CollectionSchema): string => {
+    const obj: Record<string, any> = {};
+    schema.fields.forEach(f => {
+      obj[f.name] = f.example;
     });
 
-    // 1. Write the Match Document in pending state
-    simulatedLogs.push({
-      action: 'CREATE',
-      path: `/matches/${matchId}`,
-      payload: {
-        date: newMatch.date,
-        arenaId: newMatch.arenaId,
-        arenaName: newMatch.arenaName,
-        teamA: newMatch.teamA,
-        teamB: newMatch.teamB,
-        scoreA: newMatch.scoreA,
-        scoreB: newMatch.scoreB,
-        winnerTeam: newMatch.winnerTeam,
-        month: newMatch.month,
-        playerIds: newMatch.playerIds,
-        status: newMatch.status,
-        createdBy: newMatch.createdBy,
-        validatedBy: newMatch.validatedBy
-      },
-      explanation: `Escreveu partida /matches/${matchId} com STATUS 'pending' (Pendente).`
-    });
+    if (schema.subcollections && schema.subcollections.length > 0) {
+      const sub = schema.subcollections[0];
+      const subObj: Record<string, any> = {};
+      sub.fields.forEach(sf => {
+        subObj[sf.name] = sf.example;
+      });
+      // Nested description of how subcollection path functions
+      obj[`// SUBCOLEÇÃO: ${sub.path}`] = [subObj];
+    }
 
-    // Explain that scores are LOCKED
-    const creatorName = players.find(p => p.id === loggedPlayerId)?.name || 'Diego Santos';
-    const opponentTeam = newMatch.teamA.includes(loggedPlayerId) ? 'Dupla B' : 'Dupla A';
-    
-    simulatedLogs.push({
-      action: 'INFO',
-      path: 'RATING_TRANSACTION_LOCK',
-      payload: null,
-      explanation: `🔒 SEGURANÇA: Bloqueio Ativo. A partida foi assinada apenas por ${creatorName} (time autor). Para evitar fraudes nos rankings locais, a transação NoSQL de acúmulo de pontos foi retida. A partida aguarda validação de ao menos um atleta da equipe adversária (${opponentTeam}).`
-    });
-
-    onRecordMatch(newMatch, simulatedLogs);
-    setSuccessMsg(true);
-    setTimeout(() => setSuccessMsg(false), 4000);
+    return JSON.stringify(obj, null, 2);
   };
 
-  // Helper to filter options to avoid choosing duplicates
-  const getAvailablePlayersFor = (currentSelection: string, excludeList: string[]) => {
-    return players.filter(p => !excludeList.includes(p.id) || p.id === currentSelection);
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col h-full" id="simulator-card">
-      <div className="bg-slate-50 border-b border-slate-100 p-4 flex items-center justify-between" id="simulator-header">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-500" />
-          <h3 className="font-semibold text-slate-800 text-base">Registrador de Partida & Simulador NoSQL</h3>
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col h-full" id="schema-viewer-container">
+      {/* Tab bar header */}
+      <div className="bg-slate-50 border-b border-slate-100 p-4" id="schema-header">
+        <div className="flex items-center gap-2 mb-3">
+          <Database className="w-5 h-5 text-emerald-500" />
+          <h3 className="font-semibold text-slate-800 text-lg">Modelagem do Banco Firestore NoSQL</h3>
         </div>
-        <button
-          onClick={clearLogs}
-          id="btn-clear-logs"
-          className="text-xs flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Resetar Logs</span>
-        </button>
+        
+        {/* Collection Selector Buttons */}
+        <div className="flex flex-wrap gap-2 text-sm">
+          {firestoreSchema.map((col, index) => (
+            <button
+              key={col.path}
+              id={`btn-col-${index}`}
+              onClick={() => setSelectedColIndex(index)}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                selectedColIndex === index
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {col.path.split('/')[1]} {/* Just collection name (arenas, players, duos, matches) */}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="p-5 flex-1 overflow-y-auto space-y-4 max-h-[640px]" id="simulator-scroller">
-        <form onSubmit={handleSimulate} className="space-y-4 text-xs">
-          
-          {/* Row 1: Arena and Month */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="arena-month-row">
+      {/* Main Body */}
+      <div className="p-5 flex-1 flex flex-col overflow-y-auto max-h-[700px] space-y-5" id="schema-body">
+        {/* Metadata info of collection */}
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+          <div className="flex items-start gap-2">
+            <Server className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
             <div>
-              <label className="block text-slate-600 font-semibold mb-1 uppercase tracking-wider">Local da Arena</label>
-              <select
-                id="select-arena"
-                value={arenaId}
-                onChange={(e) => setArenaId(e.target.value)}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium"
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Caminho da Coleção</span>
+              <code className="text-sm font-semibold text-emerald-600 font-mono break-all">{selectedCol.path}</code>
+            </div>
+          </div>
+          <p className="text-slate-600 text-sm">{selectedCol.description}</p>
+          <div className="pt-2 border-t border-dashed border-slate-200 mt-2">
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block mb-0.5">Por Que Modelar Assim? (Performance e Custos)</span>
+            <p className="text-slate-600 text-xs leading-relaxed italic">{selectedCol.whyThisWay}</p>
+          </div>
+        </div>
+
+        {/* Tab options for JSON Schema vs Table */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Fields dictionary Table */}
+          <div className="lg:col-span-7 space-y-3">
+            <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-sky-500" />
+              Dicionário de Atributos & Tipos NoSQL
+            </h4>
+            <div className="border border-slate-100 rounded-xl overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-100">
+                  <tr>
+                    <th className="p-3">Campo</th>
+                    <th className="p-3">Tipo</th>
+                    <th className="p-3">O que guarda</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {selectedCol.fields.map(f => (
+                    <tr key={f.name} className="hover:bg-slate-50/50">
+                      <td className="p-3 font-mono font-bold text-slate-800 select-all">{f.name}</td>
+                      <td className="p-3 text-slate-500 font-medium">
+                        <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-600 font-mono">{f.type}</span>
+                      </td>
+                      <td className="p-3 text-slate-600 leading-normal">{f.description}</td>
+                    </tr>
+                  ))}
+                  {/* Append monthly subcollection visual mock if player is selected */}
+                  {selectedCol.subcollections && selectedCol.subcollections.length > 0 && (
+                    <tr className="bg-indigo-50/30">
+                      <td colSpan={3} className="p-3 text-indigo-800 font-bold">
+                        <div className="flex items-center gap-1 border-t border-dashed border-indigo-100 pt-2 pb-1 text-xs">
+                          <code className="text-indigo-600 font-mono text-[10px]">/players/{'{playerId}'}/monthlyStats/{'{yearMonth}'}</code>
+                          <span>(Subcoleção do Jogador)</span>
+                        </div>
+                        <p className="text-[11px] text-indigo-600 font-normal leading-relaxed">
+                          Subcoleção para guardar dados agregados históricos mensais de vitórias, derrotas e pontos do atleta. Essencial para a curva de evolução rápida sem explodir custos de leitura.
+                        </p>
+                        <div className="mt-2 space-y-1.5 font-normal text-[11px]">
+                          {selectedCol.subcollections[0].fields.map(sf => (
+                            <div key={sf.name} className="flex justify-between items-center text-slate-600 font-mono pb-1 border-b border-indigo-50/50">
+                              <span><strong className="text-slate-800">{sf.name}</strong> <i>({sf.type})</i></span>
+                              <span className="text-[10px] text-right max-w-xs">{sf.description}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Code display: JSON sample output */}
+          <div className="lg:col-span-5 flex flex-col space-y-2">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                <Code className="w-4 h-4 text-emerald-500" />
+                Estrutura JSON do Documento
+              </h4>
+              <button
+                id={`btn-copy-json-${selectedColIndex}`}
+                onClick={() => handleCopy(generateJSONSample(selectedCol), `json-${selectedColIndex}`)}
+                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition font-medium px-2 py-1 hover:bg-indigo-50 rounded"
               >
-                {arenas.map(a => (
-                  <option key={a.id} value={a.id}>{a.name} ({a.city.split('-')[0]})</option>
-                ))}
-              </select>
+                {copied === `json-${selectedColIndex}` ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-500" />
+                    <span>Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>Copiar JSON</span>
+                  </>
+                )}
+              </button>
             </div>
+            <div className="relative bg-slate-900 rounded-xl p-4 font-mono text-[11px] text-indigo-100 overflow-x-auto min-h-[300px] shadow-inner border border-slate-800">
+              <pre className="whitespace-pre-wrap leading-relaxed select-all">
+                {generateJSONSample(selectedCol)}
+              </pre>
+            </div>
+          </div>
+        </div>
 
-            <div>
-              <label className="block text-slate-600 font-semibold mb-1 uppercase tracking-wider">Data da Partida (Check-in)</label>
-              <input
-                id="input-date"
-                type="date"
-                value={matchDate}
-                onChange={(e) => setMatchDate(e.target.value)}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono font-semibold"
-              />
+        {/* Pro explanations tabs in footer */}
+        <div className="pt-4 border-t border-slate-100 space-y-3" id="queries-and-dart-section">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-sm">
+              <CodeSquare className="w-4 h-4 text-pink-500" />
+              <span>Como Calcular Requisitos no Flutter / Dart</span>
+            </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setShowCodeTab('explanation')}
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  showCodeTab === 'explanation' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                }`}
+              >
+                Estratégia NoSQL
+              </button>
+              <button
+                onClick={() => setShowCodeTab('dart')}
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  showCodeTab === 'dart' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                }`}
+              >
+                Código Flutter (Dart)
+              </button>
             </div>
           </div>
 
-          {/* DUPLA A SQUAD (Duo A) */}
-          <div className="p-3 bg-indigo-50/20 border border-indigo-100/50 rounded-xl space-y-2" id="duo-a-squad">
-            <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest block">🛡️ Dupla A (Team A)</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-500 mb-1">Jogador 1</label>
-                <select
-                  id="select-pA1"
-                  value={playerA1}
-                  onChange={(e) => setPlayerA1(e.target.value)}
-                  className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium"
-                >
-                  {getAvailablePlayersFor(playerA1, [playerA2, playerB1, playerB2]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-500 mb-1">Jogador 2</label>
-                <select
-                  id="select-pA2"
-                  value={playerA2}
-                  onChange={(e) => setPlayerA2(e.target.value)}
-                  className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium"
-                >
-                  {getAvailablePlayersFor(playerA2, [playerA1, playerB1, playerB2]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* DUPLA B SQUAD (Duo B) */}
-          <div className="p-3 bg-amber-50/20 border border-amber-100/50 rounded-xl space-y-2" id="duo-b-squad">
-            <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest block">🎯 Dupla B (Team B)</span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-500 mb-1">Jogador 1</label>
-                <select
-                  id="select-pB1"
-                  value={playerB1}
-                  onChange={(e) => setPlayerB1(e.target.value)}
-                  className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium"
-                >
-                  {getAvailablePlayersFor(playerB1, [playerA1, playerA2, playerB2]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-500 mb-1">Jogador 2</label>
-                <select
-                  id="select-pB2"
-                  value={playerB2}
-                  onChange={(e) => setPlayerB2(e.target.value)}
-                  className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium"
-                >
-                  {getAvailablePlayersFor(playerB2, [playerA1, playerA2, playerB1]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* PLACAR INPUT (Score) */}
-          <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100" id="match-scores-row">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">📊 Placar do Confronto</span>
-            <div className="flex items-center gap-4 justify-center">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-700">Dupla A:</span>
-                <input
-                  id="input-scoreA"
-                  type="number"
-                  min="0"
-                  max="30"
-                  value={scoreA}
-                  onChange={(e) => setScoreA(parseInt(e.target.value) || 0)}
-                  className="w-12 p-1 bg-white border border-slate-200 rounded text-center text-slate-800 font-bold text-xs focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <span className="font-bold text-slate-400">X</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  id="input-scoreB"
-                  type="number"
-                  min="0"
-                  max="30"
-                  value={scoreB}
-                  onChange={(e) => setScoreB(parseInt(e.target.value) || 0)}
-                  className="w-12 p-1 bg-white border border-slate-200 rounded text-center text-slate-800 font-bold text-xs focus:ring-1 focus:ring-indigo-500"
-                />
-                <span className="font-semibold text-slate-700">Dupla B:</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Validation & feedback alerts */}
-          {errorMsg && (
-            <div className="p-3 bg-rose-50 text-rose-700 rounded-xl flex items-start gap-1.5 border border-rose-100 leading-normal" id="validation-error">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-1.5 border border-emerald-100 font-semibold" id="validation-success">
-              <Check className="w-4 h-4" />
-              <span>Partida Simulada com Sucesso! Veja a escrita de documentos abaixo.</span>
-            </div>
-          )}
-
-          {/* Action button */}
-          <button
-            type="submit"
-            id="btn-trigger-simulator"
-            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md cursor-pointer transition flex items-center justify-center gap-1.5 text-xs text-center"
-          >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            <span>Executar Escrita de Transação Firestore</span>
-          </button>
-        </form>
-
-        {/* Live transactional terminal console log */}
-        <div className="space-y-1.5 mt-2" id="transaction-logs-view">
-          <div className="flex items-center gap-1 text-xs font-semibold text-slate-700">
-            <Terminal className="w-4 h-4 text-emerald-500" />
-            <span>Console Transacional do Firebase Firestore</span>
-          </div>
-
-          <div className="bg-slate-950 text-emerald-400 p-3 rounded-xl font-mono text-[10px] space-y-2 min-h-[160px] max-h-[220px] overflow-y-auto shadow-inner border border-slate-800">
-            {logs.length === 0 ? (
-              <p className="text-slate-500 italic text-center pt-8">
-                Preencha as duplas acima e aperte "Executar Escrita..." para ver a transação NoSQL simular em tempo real os SET, UPDATE e MERGE executados.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {logs.map((log, index) => {
-                  let badgeColor = 'text-sky-400 bg-sky-950 border border-sky-900';
-                  if (log.action === 'CREATE') badgeColor = 'text-emerald-400 bg-emerald-950 border border-emerald-900';
-                  if (log.action === 'UPDATE') badgeColor = 'text-amber-400 bg-amber-950 border border-amber-900';
-                  if (log.path === 'TRANSACTION' || log.path === 'TRANSACTION_COMMIT') badgeColor = 'text-pink-400 bg-pink-950 border border-pink-900';
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="query-columns-updated">
+            {/* Loop through queriesExplanation */}
+            {Object.entries(queriesExplanation).map(([key, queryVal]: [string, any]) => (
+              <div key={key} className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                      {key === 'ranking' ? 'REQUISITO 1' : 
+                       key === 'aproveitamento' ? 'REQUISITO 2' : 
+                       key === 'evolucao' ? 'REQUISITO 3' : 
+                       key === 'rankingDuplas' ? 'REQUISITO 4 (DUPLAS / TORNEIO)' : 
+                       key === 'compilacaoArena' ? 'REQUISITO 5 (ARENA DO ANO)' : 'MÉTODO'}
+                    </span>
+                    {queryVal.formula && (
+                      <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 font-mono text-[9px] font-bold rounded">
+                        Fórmula Ativa
+                      </span>
+                    )}
+                  </div>
+                  <h5 className="font-bold text-slate-800 text-xs">{queryVal.title}</h5>
                   
-                  return (
-                    <div key={index} className="pb-1.5 border-b border-slate-900/40 last:border-0">
-                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                        <span className={`px-1 rounded text-[8px] font-bold ${badgeColor}`}>
-                          {log.action}
-                        </span>
-                        <span className="text-slate-200 font-bold break-all">{log.path}</span>
-                      </div>
-                      <p className="text-slate-400 text-[9px] mb-1">{log.explanation}</p>
-                      {log.payload && (
-                        <div className="bg-slate-900/50 p-1.5 rounded border border-slate-900 text-slate-300 overflow-x-auto whitespace-pre-wrap max-h-24">
-                          {JSON.stringify(log.payload, null, 2)}
+                  {showCodeTab === 'explanation' || !queryVal.dartCode ? (
+                    <div className="space-y-2 mt-1.5">
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {queryVal.explanation}
+                      </p>
+                      {queryVal.formula && (
+                        <div className="p-1.5 bg-slate-100 text-slate-700 rounded font-mono text-[9px] text-center font-semibold">
+                          {queryVal.formula}
                         </div>
                       )}
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div className="relative bg-slate-900 rounded-lg p-2.5 font-mono text-[9px] text-slate-200 mt-2 overflow-x-auto max-h-48 shadow-inner">
+                      <pre className="whitespace-pre shrink-0">{queryVal.dartCode}</pre>
+                    </div>
+                  )}
+                </div>
+
+                {queryVal.dartCode && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleCopy(queryVal.dartCode, `copy-code-${key}`)}
+                      className="w-full text-center text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+                    >
+                      {copied === `copy-code-${key}` ? '✔ Código Copiado!' : '📋 Copiar Código'}
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            ))}
+          </div>
+
+          {/* Full Transaction helper detail */}
+          <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100/50 space-y-2 mt-3 flex flex-col md:flex-row justify-between gap-4">
+            <div className="space-y-1">
+              <span className="inline-block bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase">
+                Padrão de Consistência Atômica do Futevôlei
+              </span>
+              <h4 className="font-bold text-indigo-900 text-xs">Atualizando Jogadores, Mês e Duplas Simultaneamente</h4>
+              <p className="text-[11px] text-indigo-700 leading-relaxed max-w-4xl">
+                Tanto as estatísticas anuais das arenas quanto o aproveitamento das duplas de exemplo e pontos de ranking precisam cooperar de forma atômica. Se qualquer um dos caminhos falhar, o Firebase cancelará tudo para impedir corrupção das tabelas de liderança.
+              </p>
+            </div>
+            <button
+              onClick={() => handleCopy(queriesExplanation.transacao.dartCode, "main-txn")}
+              className="md:self-center self-start whitespace-nowrap flex items-center gap-1.5 text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-semibold px-4 py-2 rounded-xl transition shadow-sm cursor-pointer"
+            >
+              {copied === "main-txn" ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Código Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Transação Completa Dart</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>

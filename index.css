@@ -3,291 +3,1164 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export interface SchemaField {
-  name: string;
-  type: string;
-  description: string;
-  example: any;
-}
+import { Player, Arena, Match, MonthlyStat, Duo } from '../types';
 
-export interface CollectionSchema {
-  path: string;
-  description: string;
-  whyThisWay: string;
-  fields: SchemaField[];
-  subcollections?: CollectionSchema[];
-}
-
-export const firestoreSchema: CollectionSchema[] = [
+export const initialArenas: Arena[] = [
   {
-    path: "/arenas/{arenaId}",
-    description: "Cadastro das arenas ativas (Pântano, Arena Marisol, BPCHOQUE, Buraco, Petromar) e dados de performance consolidados por local.",
-    whyThisWay: "Coleção raiz de arenas. Jogadores são vinculados via arenaId. Permite realizar o comparativo de 'Arena Ganhadora do Ano' em O(1) calculando o volume de partidas disputadas no local, placares gerais e o atleta de melhor aproveitamento nativo de forma agregada no documento.",
-    fields: [
-      { name: "id", type: "String", description: "ID único gerador para a arena (ex: arena_marisol).", example: "arena_marisol" },
-      { name: "name", type: "String", description: "Nome representativo da Arena.", example: "Arena Marisol" },
-      { name: "city", type: "String", description: "Cidade sede da quadra.", example: "Salvador - BA" },
-      { name: "imageUrl", type: "String", description: "Link da foto física do complexo esportivo.", example: "https://images.unsplash.com/photo-1519046904884-53103b34b206" },
-      { name: "matchesPlayed", type: "Number (Integer)", description: "Contagem agregada de todas as partidas disputadas nesta arena.", example: 15 },
-      { name: "totalPointsScored", type: "Number (Integer)", description: "Soma de todos os pontos marcados nas redes desta arena.", example: 310 },
-      { name: "topPlayerId", type: "String", description: "Referência ao jogador filiado com maior aproveitamento (Win Rate) neste ano.", example: "usr_sofia" },
-      { name: "topPlayerName", type: "String", description: "Nome amigável do melhor jogador afiliado para evitar joins complexos.", example: "Sofia 'Shark'" },
-      { name: "yearlyVictories", type: "Map (Year -> Matches)", description: "Contagem anual de partidas consolidadas para decidir a melhor arena do ano.", example: { "2026": 11 } },
-      { name: "createdAt", type: "Timestamp", description: "Data de registro da Arena.", example: "Timestamp(seconds=1780590000, nanoseconds=0)" }
-    ]
+    id: "arena_pantano",
+    name: "Arena Pântano",
+    city: "Salvador - BA",
+    imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=400",
+    createdAt: "2026-01-10T12:00:00Z",
+    matchesPlayed: 12,
+    totalPointsScored: 242,
+    topPlayerId: "usr_diego",
+    topPlayerName: "Diego Santos",
+    yearlyVictories: { "2026": 8 }
   },
   {
-    path: "/players/{playerId}",
-    description: "Cadastro de jogadores e suas estatísticas de carreira.",
-    whyThisWay: "Contém campos indexados como 'winRate' e 'points' para possibilitar queries rápidas com ordenação orderBy() direta no Flutter, além de um arenaId correspondente que classifica a filiação do atleta com as arenas de exemplo (Pântano, Marisol, etc.).",
-    fields: [
-      { name: "id", type: "String", description: "UID original do Firebase Auth ou apelido único.", example: "usr_diego" },
-      { name: "name", type: "String", description: "Nome de exibição nas tabelas do futevôlei.", example: "Diego Santos" },
-      { name: "photoUrl", type: "String", description: "Foto de perfil oficial.", example: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e" },
-      { name: "arenaId", type: "String", description: "Arena de filiação principal do jogador (Pântano, Marisol, etc.).", example: "arena_pantano" },
-      { name: "wins", type: "Number (Integer)", description: "Total acumulado de vitórias do atleta.", example: 9 },
-      { name: "losses", type: "Number (Integer)", description: "Total acumulado de derrotas do atleta.", example: 3 },
-      { name: "totalMatches", type: "Number (Integer)", description: "Número total de jogos disputados.", example: 12 },
-      { name: "winRate", type: "Number (Float)", description: "Razão wins/totalMatches (0.00 a 1.00) usada para o aproveitamento.", example: 0.75 },
-      { name: "points", type: "Number (Integer)", description: "Pontos gerais do campeonato (vitória = 3pt, derrota = 1pt).", example: 30 },
-      { name: "createdAt", type: "Timestamp", description: "Data de início no futevôlei do app.", example: "Timestamp(seconds=1780612000, nanoseconds=0)" }
-    ],
-    subcollections: [
-      {
-        path: "/players/{playerId}/monthlyStats/{yearMonth}",
-        description: "Histórico mensal de desempenho individual por ano e mês.",
-        whyThisWay: "O ID do documento refere-se ao período (ex: '2026-06'). Permite plotar gráficos de linha de evolução na tela do usuário instantaneamente.",
-        fields: [
-          { name: "month", type: "String", description: "Chave única no formato AAAA-MM.", example: "2026-06" },
-          { name: "wins", type: "Number (Integer)", description: "Vitórias obtidas.", example: 3 },
-          { name: "losses", type: "Number (Integer)", description: "Derrotas obtidas.", example: 1 },
-          { name: "points", type: "Number (Integer)", description: "Pontos acumulados.", example: 10 }
-        ]
-      }
-    ]
+    id: "arena_marisol",
+    name: "Arena Marisol",
+    city: "Salvador - BA",
+    imageUrl: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&q=80&w=400",
+    createdAt: "2026-01-15T14:30:00Z",
+    matchesPlayed: 15,
+    totalPointsScored: 310,
+    topPlayerId: "usr_sofia",
+    topPlayerName: "Sofia 'Shark'",
+    yearlyVictories: { "2026": 11 }
   },
   {
-    path: "/duos/{duoId}",
-    description: "Compilação e tabela de classificação de DUPLAS parceiras.",
-    whyThisWay: "Para classificar e analisar as melhores duplas e sua sinergia, criamos documentos no formato 'idJogadorA_idJogadorB' (ordenados alfabeticamente). Esse padrão impede registros duplicados (ex: Diego+Lucas e Lucas+Diego) e permite responder com 100% de precisão sobre a melhor dupla do torneio anual de forma indexada.",
-    fields: [
-      { name: "id", type: "String", description: "ID alfabético 'idMenor_idMaior' que garante unicidade para a dupla.", example: "usr_diego_usr_lucas" },
-      { name: "playerIds", type: "Array (String)", description: "Vetor contendo os dois IDs de jogadores correspondentes.", example: ["usr_diego", "usr_lucas"] },
-      { name: "playerNames", type: "Array (String)", description: "Nomes denormalizados de ambos os jogadores para listagens rápidas.", example: ["Diego Santos", "Lucas 'Lob'"] },
-      { name: "photoUrls", type: "Array (String)", description: "Fotos de perfil de ambos os jogadores.", example: ["https://images.unsplash.com/photo-1500648767791-00dcc994a43e", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde"] },
-      { name: "wins", type: "Number (Integer)", description: "Vitórias obtidas jogando lado a lado.", example: 6 },
-      { name: "losses", type: "Number (Integer)", description: "Derrotas obtidas jogando lado a lado.", example: 2 },
-      { name: "totalMatches", type: "Number (Integer)", description: "Soma de partidas disputadas em conjunto.", example: 8 },
-      { name: "winRate", type: "Number (Float)", description: "Aproveitamento conjunto (wins / totalMatches).", example: 0.75 },
-      { name: "points", type: "Number (Integer)", description: "Pontos conjuntos acumulados.", example: 20 },
-      { name: "yearlyWins", type: "Map (Year -> Wins)", description: "Estatística de vitórias para calcular quem ganhou mais o 'Torneio Anual' daquele ano específico.", example: { "2026": 6 } }
-    ]
+    id: "arena_bpchoque",
+    name: "Arena BPCHOQUE",
+    city: "Salvador - BA",
+    imageUrl: "https://images.unsplash.com/photo-1548690312-e3b507d8c110?auto=format&fit=crop&q=80&w=400",
+    createdAt: "2026-02-01T09:00:00Z",
+    matchesPlayed: 9,
+    totalPointsScored: 180,
+    topPlayerId: "usr_bruna",
+    topPlayerName: "Bruna 'Defesa'",
+    yearlyVictories: { "2026": 6 }
   },
   {
-    path: "/matches/{matchId}",
-    description: "Registro cronológico imutável de todas as partidas.",
-    whyThisWay: "Tabela transacional. Usamos o campo 'playerIds' para carregar todo o histórico de confrontos que tenham a participação do usuário independentemente de equipe, usando queries 'array-contains'.",
-    fields: [
-      { name: "id", type: "String", description: "ID do documento do Firestore.", example: "match_12345" },
-      { name: "date", type: "Timestamp", description: "Data de realização do jogo.", example: "Timestamp(seconds=1780677173, nanoseconds=0)" },
-      { name: "arenaId", type: "String", description: "ID da Arena de realização (Buraco, Pântano, etc.).", example: "arena_pantano" },
-      { name: "arenaName", type: "String", description: "Nome denormalizado da Arena pra evitar joins.", example: "Arena Pântano" },
-      { name: "teamA", type: "Array (String)", description: "IDs da dupla A.", example: ["usr_diego", "usr_lucas"] },
-      { name: "teamB", type: "Array (String)", description: "IDs da dupla B.", example: ["usr_sofia", "usr_pedro"] },
-      { name: "scoreA", type: "Number (Integer)", description: "Placar final da dupla A.", example: 18 },
-      { name: "scoreB", type: "Number (Integer)", description: "Placar final da dupla B.", example: 15 },
-      { name: "winnerTeam", type: "String", description: "Vantagem do placar ('A' ou 'B').", example: "A" },
-      { name: "month", type: "String", description: "Chave do período em formato AAAA-MM.", example: "2026-06" },
-      { name: "playerIds", type: "Array (String)", description: "Array contendo os 4 participantes juntos.", example: ["usr_diego", "usr_lucas", "usr_sofia", "usr_pedro"] }
-    ]
+    id: "arena_buraco",
+    name: "Arena do Buraco",
+    city: "Salvador - BA",
+    imageUrl: "https://images.unsplash.com/photo-1544698310-74ea9d1c8258?auto=format&fit=crop&q=80&w=400",
+    createdAt: "2026-02-15T10:00:00Z",
+    matchesPlayed: 7,
+    totalPointsScored: 134,
+    topPlayerId: "usr_lucas",
+    topPlayerName: "Lucas 'Lob'",
+    yearlyVictories: { "2026": 4 }
+  },
+  {
+    id: "arena_petromar",
+    name: "Petromar Futevôlei",
+    city: "Salvador - BA",
+    imageUrl: "https://images.unsplash.com/photo-1533760881669-00df19ef9c20?auto=format&fit=crop&q=80&w=400",
+    createdAt: "2026-02-28T16:00:00Z",
+    matchesPlayed: 11,
+    totalPointsScored: 215,
+    topPlayerId: "usr_diego",
+    topPlayerName: "Diego Santos",
+    yearlyVictories: { "2026": 7 }
   }
 ];
 
-export const queriesExplanation = {
-  ranking: {
-    title: "Como calcular o Ranking",
-    explanation: "Em vez de calcular os pontos dinamicamente somando partidas, consulte diretamente a coleção `/players` ordenada pelo campo `points` de forma decrescente. Isso consome exatamente 1 leitura por jogador retornado na paginação.",
-    dartCode: `// Consulta ideal para a tabela de líderes (Leaderboard) em Flutter
-QuerySnapshot liders = await FirebaseFirestore.instance
-    .collection('players')
-    .orderBy('points', descending: true)
-    .limit(20)
-    .get();`
+export const initialPlayers: Player[] = [
+  {
+    id: "usr_diego",
+    name: "Diego Santos",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30, // 9 * 3 + 3 * 1 = 30 points
+    createdAt: "2026-03-01T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-12", "2026-05-15", "2026-04-10"],
+    role: "admin_geral",
+    managedArenaIds: ["arena_pantano", "arena_marisol"]
   },
-  aproveitamento: {
-    title: "Como calcular o Aproveitamento (Vitórias/Derrotas)",
-    explanation: "O aproveitamento individual é computado através do campo `winRate` pré-registrado. Pelo fato de estar salvo diretamente em cada documento, você pode listar os jogadores com maior aproveitamento (que jogaram um número mínimo de partidas) instantaneamente com filtragem server-side.",
-    formula: "Aproveitamento % = (vitórias / total_de_partidas) * 100",
-    dartCode: `// Listagem ordenada por aproveitamento de jogadores experientes
-QuerySnapshot topWinRate = await FirebaseFirestore.instance
-    .collection('players')
-    .where('totalMatches', isGreaterThanOrEqualTo: 5) // Evita distorções de quem jogou 1 partida só e venceu
-    .orderBy('totalMatches')
-    .orderBy('winRate', descending: true)
-    .get();`
+  {
+    id: "usr_pablo",
+    name: "Pablo Calazans",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-03-20T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-10", "2026-05-12", "2026-04-14"],
+    role: "admin_arena",
+    managedArenaIds: ["arena_pantano"]
   },
-  evolucao: {
-    title: "Como calcular a Evolução Mensal",
-    explanation: "Busque a subcoleção `/players/{playerId}/monthlyStats` ordenada por mês de maneira crescente. Cada documento dará os pontos, vitórias e derrotas acumuladas de um mês específico. Monte o gráfico de linha relacionando os meses no eixo X e os pontos ou vitórias no eixo Y.",
-    dartCode: `// Obter histórico de evolução para o gráfico do jogador
-QuerySnapshot evolucao = await FirebaseFirestore.instance
-    .collection('players')
-    .doc(playerId)
-    .collection('monthlyStats')
-    .orderBy('month', descending: false)
-    .get();
-
-// No Flutter, mapeie os documentos diretamente para renderizar na biblioteca charts_flutter ou fl_chart
-List<MonthlyStat> stats = evolucao.docs.map((doc) => MonthlyStat.fromFirestore(doc)).toList();`
+  {
+    id: "usr_rasta",
+    name: "Rasta Fut",
+    photoUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 10,
+    losses: 2,
+    totalMatches: 12,
+    winRate: 0.83,
+    points: 32,
+    createdAt: "2026-03-21T11:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-20", "2026-05-22", "2026-04-25", "2026-04-28"]
   },
-  transacao: {
-    title: "Garantindo a Consistência com Transações (Firestore Transaction)",
-    explanation: "Ao registrar uma partida, você PRECISA salvar o Match e atualizar as estatísticas de cada um dos 4 jogadores participantes e de suas respectivas DUPLAS parceiras de forma atômica no Firestore. O código abaixo mostra como aplicar isso atômicamente no Flutter.",
-    dartCode: `Future<void> registrarPartida(Match match) {
-  final firestore = FirebaseFirestore.instance;
-  final matchRef = firestore.collection('matches').doc();
-  
-  return firestore.runTransaction((transaction) async {
-    // 1. Grava a partida
-    transaction.set(matchRef, match.toMap());
-    
-    // Lista de ids de todos os jogadores envolvidos
-    List<String> todosJogadores = [...match.teamA, ...match.teamB];
-    bool duplaAvenceu = match.winnerTeam == 'A';
-    
-    // Atualização dos 4 jogadores individuais
-    for (String pId in todosJogadores) {
-      final playerRef = firestore.collection('players').doc(pId);
-      final monthStatsRef = playerRef.collection('monthlyStats').doc(match.month);
-      
-      DocumentSnapshot playerSnap = await transaction.get(playerRef);
-      DocumentSnapshot monthSnap = await transaction.get(monthStatsRef);
-      
-      bool isTeamA = match.teamA.contains(pId);
-      bool isWinner = (isTeamA && duplaAvenceu) || (!isTeamA && !duplaAvenceu);
-      
-      int ptsGanhos = isWinner ? 3 : 1; 
-      int novaVitoria = isWinner ? 1 : 0;
-      int novaDerrota = isWinner ? 0 : 1;
-      
-      if (playerSnap.exists) {
-        int currentWins = playerSnap.get('wins') ?? 0;
-        int currentLosses = playerSnap.get('losses') ?? 0;
-        int currentPoints = playerSnap.get('points') ?? 0;
-        
-        int nextWins = currentWins + novaVitoria;
-        int nextLosses = currentLosses + novaDerrota;
-        int nextTotal = nextWins + nextLosses;
-        double nextWinRate = nextTotal > 0 ? (nextWins / nextTotal) : 0.0;
-        
-        transaction.update(playerRef, {
-          'wins': nextWins,
-          'losses': nextLosses,
-          'totalMatches': nextTotal,
-          'winRate': nextWinRate,
-          'points': currentPoints + ptsGanhos
-        });
-      }
-      
-      // Atualiza Valores Mensais
-      if (monthSnap.exists) {
-        transaction.update(monthStatsRef, {
-          'wins': (monthSnap.get('wins') ?? 0) + novaVitoria,
-          'losses': (monthSnap.get('losses') ?? 0) + novaDerrota,
-          'points': (monthSnap.get('points') ?? 0) + ptsGanhos
-        });
-      } else {
-        transaction.set(monthStatsRef, {
-          'month': match.month,
-          'wins': novaVitoria,
-          'losses': novaDerrota,
-          'points': ptsGanhos
-        });
-      }
-    }
-
-    // 2. Grava e Atualiza Estatísticas das Duplas parceiras envolvidas (Team A e Team B)
-    await atualizarEstatisticasDupla(transaction, match.teamA, teamAVon: duplaAvenceu, ano: match.month.split('-')[0]);
-    await atualizarEstatisticasDupla(transaction, match.teamB, teamAVon: !duplaAvenceu, ano: match.month.split('-')[0]);
-  });
-}
-
-// Auxiliar para a dupla
-Future<void> atualizarEstatisticasDupla(Transaction transaction, List<String> playerIds, {required bool teamAVon, required String ano}) async {
-  // Ordena alfabeticamente para gerar o ID unificado
-  List<String> sortedIds = [...playerIds]..sort();
-  String duoId = sortedIds.join('_');
-  final duoRef = FirebaseFirestore.instance.collection('duos').doc(duoId);
-  DocumentSnapshot duoSnap = await transaction.get(duoRef);
-
-  int vitoria = teamAVon ? 1 : 0;
-  int derrota = teamAVon ? 0 : 1;
-  int pts = teamAVon ? 3 : 1;
-
-  if (duoSnap.exists) {
-    int wins = duoSnap.get('wins') ?? 0;
-    int losses = duoSnap.get('losses') ?? 0;
-    int currentPoints = duoSnap.get('points') ?? 0;
-    Map<String, dynamic> yearlyWins = Map<String, dynamic>.from(duoSnap.get('yearlyWins') ?? {});
-    
-    int total = wins + losses + 1;
-    int nextWins = wins + vitoria;
-    yearlyWins[ano] = (yearlyWins[ano] ?? 0) + vitoria;
-
-    transaction.update(duoRef, {
-      'wins': nextWins,
-      'losses': losses + derrota,
-      'totalMatches': total,
-      'winRate': nextWins / total,
-      'points': currentPoints + pts,
-      'yearlyWins': yearlyWins
-    });
-  } else {
-    // Se a dupla nunca jogou junta, cria os registros iniciais
-    transaction.set(duoRef, {
-      'id': duoId,
-      'playerIds': sortedIds,
-      'wins': vitoria,
-      'losses': derrota,
-      'totalMatches': 1,
-      'winRate': vitoria / 1.0,
-      'points': pts,
-      'yearlyWins': { ano: vitoria }
-    });
+  {
+    id: "usr_thiago",
+    name: "Thiago Rosendo Ftv",
+    photoUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-03-22T09:30:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-15", "2026-04-11"]
+  },
+  {
+    id: "usr_santin_pantano",
+    name: "Santin Pantano Fut",
+    photoUrl: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 11,
+    losses: 3,
+    totalMatches: 14,
+    winRate: 0.79,
+    points: 36,
+    createdAt: "2026-03-23T14:40:00Z",
+    presenceDays: 7,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-06-03", "2026-05-21", "2026-05-24", "2026-04-18", "2026-04-22"]
+  },
+  {
+    id: "usr_vinicius_reis",
+    name: "Vinicius Reis Futvolei",
+    photoUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-03-24T10:15:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-11", "2026-05-19", "2026-04-09"]
+  },
+  {
+    id: "usr_victor_pantano",
+    name: "Victor Pantano Futvolei",
+    photoUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-03-25T16:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-18", "2026-04-20"]
+  },
+  {
+    id: "usr_marcelo_dourado",
+    name: "Marcelo Dourado",
+    photoUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-03-26T12:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-01", "2026-05-15", "2026-04-12"]
+  },
+  {
+    id: "usr_leonardo_britto",
+    name: "Leonardo Britto",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 5,
+    losses: 5,
+    totalMatches: 10,
+    winRate: 0.50,
+    points: 20,
+    createdAt: "2026-03-27T08:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-02", "2026-05-14", "2026-04-19"]
+  },
+  {
+    id: "usr_gaucho",
+    name: "Gaúcho",
+    photoUrl: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 11,
+    losses: 2,
+    totalMatches: 13,
+    winRate: 0.85,
+    points: 35,
+    createdAt: "2026-03-28T14:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-25", "2026-05-28", "2026-04-12", "2026-04-16"]
+  },
+  {
+    id: "usr_gidean",
+    name: "Gidean Farias Futvolei",
+    photoUrl: "https://images.unsplash.com/photo-1489980508314-941910ded1f4?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-03-29T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-14", "2026-04-20"]
+  },
+  {
+    id: "usr_joabe",
+    name: "Joabe_ftv Pantano",
+    photoUrl: "https://images.unsplash.com/photo-1506803682981-6e718a9dd3ee?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-03-30T11:30:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-22", "2026-05-26", "2026-04-05"]
+  },
+  {
+    id: "usr_juninho",
+    name: "Juninho Fut Chico",
+    photoUrl: "https://images.unsplash.com/photo-1530268729831-4b0b9e170218?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-03-31T15:20:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-01", "2026-04-11"]
+  },
+  {
+    id: "usr_junior",
+    name: "Junior Bulhosa",
+    photoUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 3,
+    totalMatches: 11,
+    winRate: 0.73,
+    points: 27,
+    createdAt: "2026-04-01T09:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-18", "2026-04-15"]
+  },
+  {
+    id: "usr_leo_maia",
+    name: "Leo Maia",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 10,
+    losses: 4,
+    totalMatches: 14,
+    winRate: 0.71,
+    points: 34,
+    createdAt: "2026-04-02T13:45:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-20", "2026-05-29", "2026-04-20"]
+  },
+  {
+    id: "usr_marcus_valadao",
+    name: "Marcus Valadão Futvolei",
+    photoUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 2,
+    totalMatches: 11,
+    winRate: 0.82,
+    points: 29,
+    createdAt: "2026-04-03T16:10:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-10", "2026-05-14", "2026-04-16"]
+  },
+  {
+    id: "usr_marcos_gabriel",
+    name: "Marcos Gabriel",
+    photoUrl: "https://images.unsplash.com/photo-1513956589380-bad6acb9b9d4?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 7,
+    losses: 6,
+    totalMatches: 13,
+    winRate: 0.54,
+    points: 27,
+    createdAt: "2026-04-04T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-18", "2026-04-12"]
+  },
+  {
+    id: "usr_marcus_ftv",
+    name: "Marcus Futvolei",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 5,
+    totalMatches: 13,
+    winRate: 0.62,
+    points: 29,
+    createdAt: "2026-04-05T08:30:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-15", "2026-04-11"]
+  },
+  {
+    id: "usr_neugison",
+    name: "Neugison Fernandes Pantano",
+    photoUrl: "https://images.unsplash.com/photo-1500048993953-d23a436266cf?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-06T15:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-20", "2026-05-22", "2026-04-14"]
+  },
+  {
+    id: "usr_allan",
+    name: "Allan Vianna Fut",
+    photoUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 11,
+    losses: 2,
+    totalMatches: 13,
+    winRate: 0.85,
+    points: 35,
+    createdAt: "2026-04-07T11:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-12", "2026-05-28", "2026-04-22", "2026-04-24"]
+  },
+  {
+    id: "usr_bruno_pantano",
+    name: "Bruno Magalhães Pantano",
+    photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-08T09:15:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-19", "2026-04-05"]
+  },
+  {
+    id: "usr_clemerson",
+    name: "Clemerson De Paula Fut",
+    photoUrl: "https://images.unsplash.com/photo-1488161628813-04466f872be2?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 10,
+    losses: 3,
+    totalMatches: 13,
+    winRate: 0.77,
+    points: 33,
+    createdAt: "2026-04-09T14:30:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-21", "2026-05-25", "2026-04-18"]
+  },
+  {
+    id: "usr_carlo_pantano",
+    name: "Carlo Italiano Pantano",
+    photoUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-10T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-11", "2026-04-20"]
+  },
+  {
+    id: "usr_caio_fv",
+    name: "Caio Fv",
+    photoUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-04-11T16:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-03", "2026-05-09", "2026-04-14"]
+  },
+  {
+    id: "usr_edson",
+    name: "Edson Carvalho Ftv",
+    photoUrl: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-12T11:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-18", "2026-04-15"]
+  },
+  {
+    id: "usr_danilo_assis",
+    name: "Danilo Fut Assis",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-13T09:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-20", "2026-05-23", "2026-04-29"]
+  },
+  {
+    id: "usr_danilo_pantano",
+    name: "DANILO Pantano",
+    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-14T15:30:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-12", "2026-04-25"]
+  },
+  {
+    id: "usr_eliseu_franca",
+    name: "Eliseu de França",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_pantano",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-15T12:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-17", "2026-04-12"]
+  },
+  {
+    id: "usr_lucas",
+    name: "Lucas 'Lob'",
+    photoUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_buraco",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26, // 7 * 3 + 5 * 1 = 26 points
+    createdAt: "2026-03-05T15:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-09", "2026-04-18"]
+  },
+  {
+    id: "usr_sofia",
+    name: "Sofia 'Shark'",
+    photoUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_marisol",
+    wins: 10,
+    losses: 2,
+    totalMatches: 12,
+    winRate: 0.83,
+    points: 32, // 10 * 3 + 2 * 1 = 32 points
+    createdAt: "2026-03-10T11:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-20", "2026-05-22"]
+  },
+  {
+    id: "usr_pepa",
+    name: "Mateus Pepa",
+    photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_marisol",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-16T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-20", "2026-05-22", "2026-04-10"]
+  },
+  {
+    id: "usr_fofo",
+    name: "Fofo",
+    photoUrl: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_marisol",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-17T11:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-01", "2026-06-03", "2026-05-18", "2026-04-15"]
+  },
+  {
+    id: "usr_lucas_marisol",
+    name: "Lucas",
+    photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_marisol",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-18T14:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-14", "2026-04-19"]
+  },
+  {
+    id: "usr_homero",
+    name: "Homero",
+    photoUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_marisol",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-04-19T16:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-01", "2026-05-20", "2026-04-12"]
+  },
+  {
+    id: "usr_pedro",
+    name: "Pedro 'Tubarão'",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_petromar",
+    wins: 5,
+    losses: 7,
+    totalMatches: 12,
+    winRate: 0.42,
+    points: 22, // 5 * 3 + 7 * 1 = 22 points
+    createdAt: "2026-03-12T08:30:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-01", "2026-06-02", "2026-05-18"]
+  },
+  {
+    id: "usr_gabriel",
+    name: "Gabriel 'Mestre'",
+    photoUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24, // 6 * 3 + 6 * 1 = 24 points
+    createdAt: "2026-03-15T16:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-05"]
+  },
+  {
+    id: "usr_bruna",
+    name: "Bruna 'Defesa'",
+    photoUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 11,
+    losses: 1,
+    totalMatches: 12,
+    winRate: 0.92,
+    points: 34, // 11 * 3 + 1 * 1 = 34 points
+    createdAt: "2026-03-18T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-02", "2026-05-08"]
+  },
+  {
+    id: "usr_robson_carlos",
+    name: "Robson Carlos",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-01T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-10", "2026-05-15", "2026-04-18"]
+  },
+  {
+    id: "usr_carlos_junior",
+    name: "Carlos Junior",
+    photoUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-02T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-12", "2026-04-20"]
+  },
+  {
+    id: "usr_lucas_paim",
+    name: "Lucas Paim",
+    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 10,
+    losses: 2,
+    totalMatches: 12,
+    winRate: 0.83,
+    points: 32,
+    createdAt: "2026-04-03T10:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-20", "2026-05-22", "2026-04-25", "2026-04-28"]
+  },
+  {
+    id: "usr_rodrigo_soares",
+    name: "Rodrigo Soares",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-04T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-05-15", "2026-05-18", "2026-04-12"]
+  },
+  {
+    id: "usr_ricco_cardoso",
+    name: "Ricco Cardoso",
+    photoUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-04-05T10:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-03", "2026-05-10", "2026-04-14"]
+  },
+  {
+    id: "usr_emerson_rocha",
+    name: "Emerson Rocha",
+    photoUrl: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-06T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-22", "2026-04-11"]
+  },
+  {
+    id: "usr_augusto",
+    name: "Augusto",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 5,
+    losses: 7,
+    totalMatches: 12,
+    winRate: 0.42,
+    points: 22,
+    createdAt: "2026-04-07T10:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-02", "2026-05-11", "2026-04-15"]
+  },
+  {
+    id: "usr_robson",
+    name: "Robson",
+    photoUrl: "https://images.unsplash.com/photo-1500048993953-d23a436266cf?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-08T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-03", "2026-05-19", "2026-05-25", "2026-04-09"]
+  },
+  {
+    id: "usr_juzao",
+    name: "Juzão",
+    photoUrl: "https://images.unsplash.com/photo-1530268729831-4b0b9e170218?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 11,
+    losses: 2,
+    totalMatches: 13,
+    winRate: 0.85,
+    points: 35,
+    createdAt: "2026-04-09T10:00:00Z",
+    presenceDays: 7,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-09", "2026-05-16", "2026-05-23", "2026-04-12", "2026-04-22"]
+  },
+  {
+    id: "usr_lucas_alves",
+    name: "Lucas Alves",
+    photoUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-10T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-14", "2026-05-19", "2026-04-20"]
+  },
+  {
+    id: "usr_sabrina_vaz",
+    name: "Sabrina Vaz",
+    photoUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 10,
+    losses: 3,
+    totalMatches: 13,
+    winRate: 0.77,
+    points: 33,
+    createdAt: "2026-04-11T10:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-21", "2026-05-24", "2026-04-15", "2026-04-30"]
+  },
+  {
+    id: "usr_andre_sertao",
+    name: "André Sertão",
+    photoUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-12T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-14", "2026-04-23"]
+  },
+  {
+    id: "usr_mb",
+    name: "M.B",
+    photoUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 12,
+    losses: 2,
+    totalMatches: 14,
+    winRate: 0.86,
+    points: 38,
+    createdAt: "2026-04-13T10:00:00Z",
+    presenceDays: 7,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-10", "2026-05-18", "2026-05-28", "2026-04-11", "2026-04-19"]
+  },
+  {
+    id: "usr_pimentel",
+    name: "Pimentel",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-14T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-05-12", "2026-05-29", "2026-04-05"]
+  },
+  {
+    id: "usr_cledson_conceicao",
+    name: "Cledson Conceição Sousa",
+    photoUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-15T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-15", "2026-04-10"]
+  },
+  {
+    id: "usr_costinha",
+    name: "Costinha",
+    photoUrl: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 10,
+    losses: 2,
+    totalMatches: 12,
+    winRate: 0.83,
+    points: 32,
+    createdAt: "2026-04-16T10:00:00Z",
+    presenceDays: 6,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-11", "2026-05-22", "2026-04-14", "2026-04-21"]
+  },
+  {
+    id: "usr_charles_lisboa",
+    name: "Charles Lisboa",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-04-17T10:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-02", "2026-05-08", "2026-04-19"]
+  },
+  {
+    id: "usr_copes_xvii",
+    name: "COPES XVII",
+    photoUrl: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-18T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-15", "2026-05-25", "2026-04-12"]
+  },
+  {
+    id: "usr_victor_menezes",
+    name: "Victor Menezes",
+    photoUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-19T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-18", "2026-04-22"]
+  },
+  {
+    id: "usr_jadson_novais",
+    name: "Jadson Novais",
+    photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-20T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-03", "2026-05-14", "2026-05-21", "2026-04-11"]
+  },
+  {
+    id: "usr_delson_silva",
+    name: "Delson Silva",
+    photoUrl: "https://images.unsplash.com/photo-1488161628813-04466f872be2?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 9,
+    losses: 3,
+    totalMatches: 12,
+    winRate: 0.75,
+    points: 30,
+    createdAt: "2026-04-21T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-10", "2026-05-17", "2026-04-20"]
+  },
+  {
+    id: "usr_ronaldo_carvalho",
+    name: "Ronaldo Carvalho",
+    photoUrl: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 6,
+    losses: 6,
+    totalMatches: 12,
+    winRate: 0.50,
+    points: 24,
+    createdAt: "2026-04-22T10:00:00Z",
+    presenceDays: 3,
+    presentDates: ["2026-06-03", "2026-05-19", "2026-04-15"]
+  },
+  {
+    id: "usr_andre_bp",
+    name: "Andre",
+    photoUrl: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-23T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-11", "2026-04-18"]
+  },
+  {
+    id: "usr_fredson_seles",
+    name: "Fredson Seles",
+    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-24T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-05-20", "2026-05-22", "2026-04-09"]
+  },
+  {
+    id: "usr_murillo",
+    name: "Murillo",
+    photoUrl: "https://images.unsplash.com/photo-1500048993953-d23a436266cf?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-25T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-14", "2026-04-12"]
+  },
+  {
+    id: "usr_adilson_cassiano",
+    name: "Adilson Cassiano",
+    photoUrl: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 10,
+    losses: 3,
+    totalMatches: 13,
+    winRate: 0.77,
+    points: 33,
+    createdAt: "2026-04-26T10:00:00Z",
+    presenceDays: 5,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-24", "2026-05-28", "2026-04-15"]
+  },
+  {
+    id: "usr_junior_moraes",
+    name: "Júnior Moraes",
+    photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 7,
+    losses: 5,
+    totalMatches: 12,
+    winRate: 0.58,
+    points: 26,
+    createdAt: "2026-04-27T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-25", "2026-04-16"]
+  },
+  {
+    id: "usr_pepa_ftv",
+    name: "Pepa",
+    photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150",
+    arenaId: "arena_bpchoque",
+    wins: 8,
+    losses: 4,
+    totalMatches: 12,
+    winRate: 0.67,
+    points: 28,
+    createdAt: "2026-04-28T10:00:00Z",
+    presenceDays: 4,
+    presentDates: ["2026-06-02", "2026-06-03", "2026-05-12", "2026-04-19"]
   }
-}`
-  },
-  rankingDuplas: {
-    title: "Ranking e Melhor Dupla (Sinergia de Parceiros)",
-    explanation: "Consulte a coleção `/duos` ordenando pelo número de vitórias acumuladas de forma decrescente para saber Instantaneamente a melhor dupla do campeonato. Para restringir ao Torneio Anual de um ano específico (ex: '2026'), use `yearlyWins.2026`.",
-    dartCode: `// Listagem geral de sinergia de duplas em Flutter
-QuerySnapshot rankingDuplas = await FirebaseFirestore.instance
-    .collection('duos')
-    .orderBy('points', descending: true)
-    .limit(10)
-    .get();
+];
 
-// Dupla Campeã do Torneio Anual 2026 (quem venceu mais partidas no ano)
-QuerySnapshot campeaoAnual = await FirebaseFirestore.instance
-    .collection('duos')
-    .orderBy('yearlyWins.2026', descending: true)
-    .limit(1)
-    .get();`
+export const initialDuos: Duo[] = [
+  {
+    id: "usr_diego_usr_lucas",
+    playerIds: ["usr_diego", "usr_lucas"],
+    playerNames: ["Diego Santos", "Lucas 'Lob'"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150"
+    ],
+    wins: 6,
+    losses: 2,
+    totalMatches: 8,
+    winRate: 0.75,
+    points: 20, // 6 wins * 3 + 2 losses * 1
+    yearlyWins: { "2026": 6 }
   },
-  compilacaoArena: {
-    title: "Comparativo de Arena Ganhadora do Ano",
-    explanation: "Filtre a coleção raiz `/arenas` pelo número de partidas disputadas naquele ano ou use os dados de faturamento/pontuação da arena. Para saber as arenas estrelas com melhor faturamento estrutural ou jogadores locais mais fortes, consulte `/arenas` ordenada por `matchesPlayed` ou pelo filtro do mapa `yearlyVictories.2026`.",
-    dartCode: `// Descobre qual a Melhor Arena / Arena de Maior Engajamento do ano
-QuerySnapshot melhorArena = await FirebaseFirestore.instance
-    .collection('arenas')
-    .orderBy('yearlyVictories.2026', descending: true)
-    .limit(1)
-    .get();
-
-// Saída em Flutter para renderizar o comparativo de todas as 5 arenas (Pântano, Marisol, etc)
-QuerySnapshot todasArenas = await FirebaseFirestore.instance
-    .collection('arenas')
-    .orderBy('matchesPlayed', descending: true)
-    .get();`
+  {
+    id: "usr_bruna_usr_sofia",
+    playerIds: ["usr_bruna", "usr_sofia"],
+    playerNames: ["Bruna 'Defesa'", "Sofia 'Shark'"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150",
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
+    ],
+    wins: 9,
+    losses: 1,
+    totalMatches: 10,
+    winRate: 0.90,
+    points: 28, // 9 * 3 + 1 * 1
+    yearlyWins: { "2026": 9 }
+  },
+  {
+    id: "usr_gabriel_usr_pedro",
+    playerIds: ["usr_gabriel", "usr_pedro"],
+    playerNames: ["Gabriel 'Mestre'", "Pedro 'Tubarão'"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=150",
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"
+    ],
+    wins: 2,
+    losses: 4,
+    totalMatches: 6,
+    winRate: 0.33,
+    points: 10, // 2 * 3 + 4 * 1
+    yearlyWins: { "2026": 2 }
+  },
+  {
+    id: "usr_diego_usr_pedro",
+    playerIds: ["usr_diego", "usr_pedro"],
+    playerNames: ["Diego Santos", "Pedro 'Tubarão'"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150",
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"
+    ],
+    wins: 3,
+    losses: 1,
+    totalMatches: 4,
+    winRate: 0.75,
+    points: 10, // 3 * 3 + 1 * 1
+    yearlyWins: { "2026": 3 }
   }
+];
+
+export const initialMonthlyStats: Record<string, MonthlyStat[]> = {
+  usr_diego: [
+    { month: "2026-04", wins: 2, losses: 1, points: 7 },
+    { month: "2026-05", wins: 4, losses: 1, points: 13 },
+    { month: "2026-06", wins: 3, losses: 1, points: 10 }
+  ],
+  usr_lucas: [
+    { month: "2026-04", wins: 3, losses: 1, points: 10 },
+    { month: "2026-05", wins: 2, losses: 3, points: 9 },
+    { month: "2026-06", wins: 2, losses: 1, points: 7 }
+  ],
+  usr_sofia: [
+    { month: "2026-04", wins: 3, losses: 1, points: 10 },
+    { month: "2026-05", wins: 4, losses: 0, points: 12 },
+    { month: "2026-06", wins: 3, losses: 1, points: 10 }
+  ],
+  usr_pedro: [
+    { month: "2026-04", wins: 1, losses: 3, points: 6 },
+    { month: "2026-05", wins: 2, losses: 3, points: 9 },
+    { month: "2026-06", wins: 2, losses: 1, points: 7 }
+  ],
+  usr_gabriel: [
+    { month: "2026-04", wins: 2, losses: 2, points: 8 },
+    { month: "2026-05", wins: 2, losses: 2, points: 8 },
+    { month: "2026-06", wins: 2, losses: 2, points: 8 }
+  ],
+  usr_bruna: [
+    { month: "2026-04", wins: 4, losses: 0, points: 12 },
+    { month: "2026-05", wins: 3, losses: 1, points: 10 },
+    { month: "2026-06", wins: 4, losses: 0, points: 12 }
+  ]
 };
+
+export const initialMatches: Match[] = [
+  {
+    id: "match_1",
+    date: "2026-06-01",
+    arenaId: "arena_pantano",
+    arenaName: "Arena Pântano",
+    teamA: ["usr_diego", "usr_lucas"],
+    teamB: ["usr_sofia", "usr_pedro"],
+    scoreA: 18,
+    scoreB: 15,
+    winnerTeam: "A",
+    month: "2026-06",
+    playerIds: ["usr_diego", "usr_lucas", "usr_sofia", "usr_pedro"],
+    status: "validated",
+    createdBy: "usr_diego",
+    validatedBy: ["usr_diego", "usr_sofia"]
+  },
+  {
+    id: "match_2",
+    date: "2026-06-02",
+    arenaId: "arena_bpchoque",
+    arenaName: "Arena BPCHOQUE",
+    teamA: ["usr_gabriel", "usr_bruna"],
+    teamB: ["usr_diego", "usr_pedro"],
+    scoreA: 12,
+    scoreB: 18,
+    winnerTeam: "B",
+    month: "2026-06",
+    playerIds: ["usr_gabriel", "usr_bruna", "usr_diego", "usr_pedro"],
+    status: "validated",
+    createdBy: "usr_pedro",
+    validatedBy: ["usr_pedro", "usr_bruna"]
+  },
+  {
+    id: "match_3",
+    date: "2026-06-03",
+    arenaId: "arena_marisol",
+    arenaName: "Arena Marisol",
+    teamA: ["usr_bruna", "usr_sofia"],
+    teamB: ["usr_lucas", "usr_gabriel"],
+    scoreA: 18,
+    scoreB: 11,
+    winnerTeam: "A",
+    month: "2026-06",
+    playerIds: ["usr_bruna", "usr_sofia", "usr_lucas", "usr_gabriel"],
+    status: "validated",
+    createdBy: "usr_bruna",
+    validatedBy: ["usr_bruna", "usr_lucas"]
+  },
+  // PENDING MATCHES (to be validated in dashboard)
+  {
+    id: "match_pending_1",
+    date: "2026-06-04",
+    arenaId: "arena_pantano",
+    arenaName: "Arena Pântano",
+    teamA: ["usr_diego", "usr_lucas"],
+    teamB: ["usr_sofia", "usr_bruna"],
+    scoreA: 18,
+    scoreB: 16,
+    winnerTeam: "A",
+    month: "2026-06",
+    playerIds: ["usr_diego", "usr_lucas", "usr_sofia", "usr_bruna"],
+    status: "pending",
+    createdBy: "usr_diego",
+    validatedBy: ["usr_diego"] // Created by Team A. Needs validation from Team B (Sofia or Bruna)
+  },
+  {
+    id: "match_pending_2",
+    date: "2026-06-04",
+    arenaId: "arena_bpchoque",
+    arenaName: "Arena BPCHOQUE",
+    teamA: ["usr_gabriel", "usr_pedro"],
+    teamB: ["usr_diego", "usr_lucas"],
+    scoreA: 13,
+    scoreB: 18,
+    winnerTeam: "B",
+    month: "2026-06",
+    playerIds: ["usr_gabriel", "usr_pedro", "usr_diego", "usr_lucas"],
+    status: "pending",
+    createdBy: "usr_gabriel",
+    validatedBy: ["usr_gabriel"] // Created by Team A. Needs validation from Team B (Diego or Lucas)
+  }
+];
