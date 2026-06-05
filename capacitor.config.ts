@@ -1,10 +1,12 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
+import { CapacitorConfig } from '@capacitor/cli';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const config: CapacitorConfig = {
+  appId: 'com.diegospiner.futvoleiapp',
+  appName: 'Futevôlei Salvador',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  }
+};
+
+export default config;
